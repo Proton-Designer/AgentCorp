@@ -149,6 +149,12 @@ internal/
 
 **Phases 1–3 complete.** The chart renders, polls the live substrate every second, reports real vitals, and the full hire → bind → message → fire → disband lifecycle works. ~180 tests, single 11MB binary.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the bar for a change, and
+[ARCHITECTURE.md](ARCHITECTURE.md) for how the codebase is organized. Security
+reports go through [SECURITY.md](SECURITY.md), not public issues.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
