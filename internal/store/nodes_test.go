@@ -91,6 +91,28 @@ func TestTombstoneRetainsRowAndChildren(t *testing.T) {
 	}
 }
 
+// DeleteNode removes the row entirely — the operator-ordered death path, as
+// opposed to Tombstone's observed-death path that keeps the row.
+func TestDeleteNodeRemovesRow(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.InsertNode(mkNode("keep", "")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.InsertNode(mkNode("gone", "")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteNode("gone"); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := s.ListNodes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || nodes[0].NodeID != "keep" {
+		t.Fatalf("after delete, got %+v; want only \"keep\"", nodes)
+	}
+}
+
 // FK enforcement is live (Task 1's pragma actually bites).
 func TestInsertRejectsUnknownParent(t *testing.T) {
 	s := newTestStore(t)

@@ -198,8 +198,13 @@ func (m Model) doFire() tea.Cmd {
 			}
 		}
 		killProcess(victim)
-		if err := st.Tombstone(victim.NodeID, nowRFC3339()); err != nil {
-			return actionResultMsg{text: "fire: tombstone failed: " + err.Error()}
+		// Remove the node outright rather than tombstoning it. Its children were
+		// just reparented, so nothing is orphaned — and a node the operator
+		// deliberately fired should leave the chart, not linger as a dead marker
+		// (which reads as "nothing happened"). Crash-detected deaths still
+		// tombstone-and-render via the sync layer; this is only the explicit path.
+		if err := st.DeleteNode(victim.NodeID); err != nil {
+			return actionResultMsg{text: "fire: remove failed: " + err.Error()}
 		}
 		return actionResultMsg{text: fmt.Sprintf("fired %q; %d report(s) reparented", victim.Name, len(moves))}
 	}
@@ -224,7 +229,9 @@ func (m Model) doDisband() tea.Cmd {
 		}
 		for _, c := range casualties {
 			killProcess(c)
-			_ = st.Tombstone(c.NodeID, nowRFC3339())
+			// The whole subtree is going, deepest first — no survivor to orphan,
+			// so remove each row rather than leaving a thicket of dead markers.
+			_ = st.DeleteNode(c.NodeID)
 		}
 		return actionResultMsg{text: fmt.Sprintf("disbanded %q: %d session(s) terminated", root.Name, len(casualties))}
 	}
@@ -238,8 +245,6 @@ func nodeByNodeID(nodes []store.Node, id string) (store.Node, bool) {
 	}
 	return store.Node{}, false
 }
-
-func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // killProcess terminates the tmux pane a node was spawned into. Best-effort:
 // if the pane is already gone (the agent exited on its own), that's success,

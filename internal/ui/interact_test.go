@@ -117,7 +117,9 @@ func TestSearchFiltersWithoutRemoving(t *testing.T) {
 	}
 }
 
-// x on a leaf opens a fire confirm; f fires. The victim tombstones.
+// x on a leaf opens a fire confirm; f fires. The victim is removed from the
+// chart outright — an explicit fire should leave nothing behind, not a dead
+// marker that reads as "nothing happened".
 func TestFireFlow(t *testing.T) {
 	m, s := liveModelWith(t,
 		store.Node{NodeID: "1", Name: "ceo", Role: "lead", Workdir: "/tmp", SpawnMode: "tmux-window", State: "alive", CreatedAt: "1"},
@@ -137,12 +139,45 @@ func TestFireFlow(t *testing.T) {
 	if cmd != nil {
 		cmd() // run the action
 	}
-	// worker should be tombstoned
+	// worker (node 2) should be gone from the store entirely.
 	nodes, _ := s.ListNodes()
 	for _, n := range nodes {
-		if n.NodeID == "2" && n.State != "dead" {
-			t.Fatalf("worker state = %q after fire, want dead", n.State)
+		if n.NodeID == "2" {
+			t.Fatalf("worker still present after fire (state=%q); an explicit fire must remove the node", n.State)
 		}
+	}
+}
+
+// Firing a manager reparents its reports to the grandparent, then removes the
+// manager — the reports must survive, never orphaned by the removal.
+func TestFireReparentsThenRemoves(t *testing.T) {
+	m, s := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "ceo", Role: "lead", Workdir: "/tmp", SpawnMode: "tmux-window", State: "alive", CreatedAt: "1"},
+		store.Node{NodeID: "2", Name: "mgr", Role: "lead", ParentID: "1", Workdir: "/tmp", SpawnMode: "tmux-window", State: "alive", CreatedAt: "2"},
+		store.Node{NodeID: "3", Name: "report", Role: "dev", ParentID: "2", Workdir: "/tmp", SpawnMode: "tmux-window", State: "alive", CreatedAt: "3"},
+	)
+	m = send(m, "down") // select mgr
+	m = send(m, "x")
+	nm, cmd := m.Update(key("f"))
+	m = nm.(Model)
+	if cmd != nil {
+		cmd()
+	}
+	nodes, _ := s.ListNodes()
+	var report *store.Node
+	for i := range nodes {
+		if nodes[i].NodeID == "2" {
+			t.Fatal("manager still present after fire; it should be removed")
+		}
+		if nodes[i].NodeID == "3" {
+			report = &nodes[i]
+		}
+	}
+	if report == nil {
+		t.Fatal("report was removed along with its manager — a fire must not orphan/lose children")
+	}
+	if report.ParentID != "1" {
+		t.Fatalf("report reparented to %q, want the grandparent \"1\"", report.ParentID)
 	}
 }
 

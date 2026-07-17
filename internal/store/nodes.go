@@ -83,6 +83,20 @@ func (s *Store) Tombstone(nodeID, when string) error {
 	return err
 }
 
+// DeleteNode removes a node row outright.
+//
+// Distinct from Tombstone on purpose. Tombstone is for a death AgentCorp merely
+// *observed* (a crash the sync layer detected): the row survives so the operator
+// still sees the node died and its children keep a valid parent. DeleteNode is
+// for a death the operator *ordered* — fire or disband — where the node's
+// children have already been reparented away, so nothing is orphaned and a
+// lingering dead marker for a deliberate action is just clutter. The caller is
+// responsible for having moved any children first.
+func (s *Store) DeleteNode(nodeID string) error {
+	_, err := s.db.Exec(`DELETE FROM nodes WHERE node_id = ?`, nodeID)
+	return err
+}
+
 func (s *Store) ListNodes() ([]Node, error) {
 	rows, err := s.db.Query(`
 		SELECT node_id, peer_id, bind_tty, name, role, parent_id,
