@@ -100,18 +100,17 @@ func (a *TmuxWindowAdapter) Launch(ctx context.Context, spec Spec) (Handle, erro
 		return Handle{}, fmt.Errorf("spawn: read prompt file: %w", err)
 	}
 
-	// Create an empty window (default shell, no claude yet) and capture its
-	// pane id + tty in the same call — the "capture before launch" ordering
-	// spec §6.1 step 3 requires. -n and -c each carry their own value as a
-	// separate argv element; tmux never re-parses either as a command.
-	out, err := run(a.tmux(ctx, "new-window", "-d", "-P", "-F", "#{pane_id} #{pane_tty}",
+	// Capture the pane id now. tty is captured AFTER respawn-pane below — see
+	// the comment there. -n and -c each carry their own value as a separate
+	// argv element; tmux never re-parses either as a command.
+	out, err := run(a.tmux(ctx, "new-window", "-d", "-P", "-F", "#{pane_id}",
 		"-n", spec.Name, "-c", spec.Workdir))
 	if err != nil {
 		return Handle{}, fmt.Errorf("spawn: tmux new-window: %w", err)
 	}
-	paneID, tty, err := parsePaneInfo(out)
-	if err != nil {
-		return Handle{}, fmt.Errorf("spawn: parse pane info: %w", err)
+	paneID := strings.TrimSpace(string(out))
+	if paneID == "" {
+		return Handle{}, fmt.Errorf("spawn: tmux new-window returned no pane id")
 	}
 
 	// Retain a crashed agent's final output for debugging (spec §8, SP-5) —
@@ -129,13 +128,19 @@ func (a *TmuxWindowAdapter) Launch(ctx context.Context, spec Spec) (Handle, erro
 		return Handle{}, fmt.Errorf("spawn: tmux respawn-pane: %w", err)
 	}
 
-	return Handle{SpawnRef: paneID, TTY: tty}, nil
-}
-
-func parsePaneInfo(out []byte) (paneID, tty string, err error) {
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) != 2 {
-		return "", "", fmt.Errorf("unexpected tmux output %q, want \"<pane_id> <pane_tty>\"", out)
+	// Capture the tty AFTER respawn-pane, NOT before. Verified against real
+	// tmux: respawn-pane -k kills the pane's process and starts a new one on a
+	// FRESH pseudo-terminal, so the tty changes (e.g. ttys021 -> ttys022) while
+	// the pane id stays fixed. The tty is the broker binding key; capturing it
+	// from the pre-respawn shell records a tty that no live peer will ever
+	// have, and every hire silently fails to bind. (This is exactly the bug a
+	// real first hire surfaced — the adversarial tests used /bin/true and never
+	// compared the tty to a registering session.)
+	ttyOut, err := run(a.tmux(ctx, "display-message", "-p", "-t", paneID, "#{pane_tty}"))
+	if err != nil {
+		return Handle{}, fmt.Errorf("spawn: read pane tty after respawn: %w", err)
 	}
-	return fields[0], fields[1], nil
+	tty := strings.TrimSpace(string(ttyOut))
+
+	return Handle{SpawnRef: paneID, TTY: tty}, nil
 }

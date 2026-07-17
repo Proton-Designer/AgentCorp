@@ -296,3 +296,50 @@ func TestLaunchAdversarialPromptContentNeverExecutes(t *testing.T) {
 		t.Logf("captured pane output did not contain the literal payload (informational, not a hard failure): %q", out)
 	}
 }
+
+// REGRESSION: the returned Handle.TTY must be the pane's tty AFTER respawn.
+//
+// respawn-pane -k allocates a fresh pty, so the tty changes across it while the
+// pane id stays fixed. Capturing the tty from the pre-respawn shell records a
+// value no live peer will ever register with, and every hire silently fails to
+// bind. A real first hire surfaced exactly this: CREW stored ttys011, the pane
+// was actually ttys016, bind never matched, the node went 'failed' while the
+// agent ran on as unmanaged.
+//
+// This test runs a real (harmless) respawn and asserts the Handle's tty equals
+// what tmux reports for that pane NOW — which is only true if capture happens
+// after respawn.
+func TestLaunchTTYIsPostRespawnTTY(t *testing.T) {
+	requireTmux(t)
+	socket := fmt.Sprintf("crew-tty-regression-%d", os.Getpid())
+	if out, err := exec.Command("tmux", "-L", socket, "new-session", "-d", "-s", "console", "-c", "/tmp").CombinedOutput(); err != nil {
+		t.Fatalf("bootstrap tmux: %v: %s", err, out)
+	}
+	t.Cleanup(func() { exec.Command("tmux", "-L", socket, "kill-server").Run() })
+
+	a := NewTmuxWindowAdapter(socket)
+	// A process that stays alive so the pane persists for the tty query.
+	a.claudeArgs = func(string) []string { return []string{"/bin/sh", "-c", "sleep 5"} }
+
+	h, err := a.Launch(context.Background(), Spec{
+		Name: "tty-test", Workdir: t.TempDir(), PromptFile: writePromptFile(t, "x"),
+	})
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+
+	// What tmux actually reports for the pane right now.
+	out, err := exec.Command("tmux", "-L", socket, "display-message", "-p", "-t", h.SpawnRef, "#{pane_tty}").Output()
+	if err != nil {
+		t.Fatalf("query pane tty: %v", err)
+	}
+	actual := strings.TrimSpace(string(out))
+
+	if h.TTY != actual {
+		t.Fatalf("Handle.TTY = %q but the pane's real tty is %q — a hire would look "+
+			"for the wrong tty and never bind", h.TTY, actual)
+	}
+	if h.TTY == "" {
+		t.Fatal("Handle.TTY is empty")
+	}
+}
