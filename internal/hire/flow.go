@@ -41,6 +41,14 @@ type Flow struct {
 	ListPeers peerLister
 	IDFunc    func() string
 
+	// ConsentPath is where the operator's first-run grant is recorded.
+	//
+	// Checked before every spawn, not once at startup: a long-running console
+	// could otherwise outlive a revoked grant. Empty means unset, and unset
+	// FAILS CLOSED — a bug that forgets to wire this must refuse to spawn
+	// rather than silently spawn without consent.
+	ConsentPath string
+
 	// BindTimeout bounds the wait for the spawned session to register.
 	// A session that never registers is FAILED, not pending forever —
 	// a hire that hangs silently is the worst outcome, because it looks
@@ -57,6 +65,14 @@ type Flow struct {
 // boots, because it is the binding key and there is no other way to know which
 // of many registering peers is ours.
 func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
+	// Consent first — before validation, before any side effect. CREW clears
+	// a security prompt on the operator's behalf; doing that without their
+	// informed, once-given agreement is the one thing this flow must never do.
+	// Fails closed on an unset path: a wiring bug must refuse to spawn, not
+	// spawn unconsented.
+	if err := RequireConsent(f.ConsentPath); err != nil {
+		return Result{}, err
+	}
 	if err := validate(req); err != nil {
 		return Result{}, err
 	}

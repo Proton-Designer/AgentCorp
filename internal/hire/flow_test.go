@@ -39,7 +39,14 @@ func testFlow(t *testing.T, a *fakeAdapter, peers func() ([]broker.Peer, error))
 	t.Helper()
 	st := testStore(t)
 	n := 0
+	// Flow refuses to spawn without consent (fails closed), so the fixture
+	// grants it. The consent-refusal cases override this deliberately.
+	consent := t.TempDir() + "/consent"
+	if err := RecordConsent(consent); err != nil {
+		t.Fatal(err)
+	}
 	return &Flow{
+		ConsentPath: consent,
 		Store:       st,
 		Adapter:     a,
 		ListPeers:   peers,
