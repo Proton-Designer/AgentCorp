@@ -33,7 +33,7 @@ import (
 // joined with another value into a single string.
 type TmuxWindowAdapter struct {
 	// Socket selects the tmux server via `-L <socket>`. Empty uses tmux's
-	// default server — the one the CREW console itself runs in (spec §8).
+	// default server — the one the AgentCorp console itself runs in (spec §8).
 	Socket string
 
 	// claudeArgs builds the argv for the process launched into the pane,

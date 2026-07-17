@@ -1,4 +1,4 @@
-// Package layout implements Reingold-Tilford tree positioning for the CREW
+// Package layout implements Reingold-Tilford tree positioning for the AgentCorp
 // hero screen. Lipgloss's tree package renders indented lists and provides no
 // topology (verified: zero source hits for center/midpoint/subtree-width), so
 // this is ours to own. See spec §13.2.

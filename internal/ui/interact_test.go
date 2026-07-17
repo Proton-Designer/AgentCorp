@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/aymanmohammed/crew/internal/layout"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 func liveModelWith(t *testing.T, rows ...store.Node) (Model, *store.Store) {

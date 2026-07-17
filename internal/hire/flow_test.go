@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/spawn"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/spawn"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // fakeAdapter records what it was asked to launch and returns a canned handle.

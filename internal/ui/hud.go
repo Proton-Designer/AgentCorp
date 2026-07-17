@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/vitals"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 // sparkChars renders throughput buckets. Deliberately ASCII-safe blocks from

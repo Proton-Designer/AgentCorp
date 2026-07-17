@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/spawn"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/spawn"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // Request is what the operator asked for.
@@ -65,7 +65,7 @@ type Flow struct {
 // boots, because it is the binding key and there is no other way to know which
 // of many registering peers is ours.
 func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
-	// Consent first — before validation, before any side effect. CREW clears
+	// Consent first — before validation, before any side effect. AgentCorp clears
 	// a security prompt on the operator's behalf; doing that without their
 	// informed, once-given agreement is the one thing this flow must never do.
 	// Fails closed on an unset path: a wiring bug must refuse to spawn, not
@@ -202,7 +202,7 @@ func validate(req Request) error {
 // Operator free text never touches a command line — spawn/ reads this file and
 // passes its content as one argv element.
 func writePrompt(req Request) (string, func(), error) {
-	dir, err := os.MkdirTemp("", "crew-prompt-")
+	dir, err := os.MkdirTemp("", "agentcorp-prompt-")
 	if err != nil {
 		return "", func() {}, err
 	}

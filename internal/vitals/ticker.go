@@ -3,7 +3,7 @@ package vitals
 import (
 	"fmt"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 // tickerMaxRunes bounds the excerpt shown in the ticker line. Not spec'd to

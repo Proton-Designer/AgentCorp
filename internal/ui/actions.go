@@ -7,12 +7,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/hire"
-	"github.com/aymanmohammed/crew/internal/lifecycle"
-	"github.com/aymanmohammed/crew/internal/msg"
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/vitals"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/hire"
+	"github.com/Proton-Designer/AgentCorp/internal/lifecycle"
+	"github.com/Proton-Designer/AgentCorp/internal/msg"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 // actionResultMsg carries the outcome of an action back to the UI as a flash.
@@ -67,7 +67,7 @@ func (m Model) submitHire(name string) tea.Cmd {
 			Role:     "agent",
 			Workdir:  workdir,
 			ParentID: parentID,
-			Prompt:   "You are a CREW agent named " + name + ".",
+			Prompt:   "You are a AgentCorp agent named " + name + ".",
 		})
 		if err != nil {
 			return actionResultMsg{text: fmt.Sprintf("hire %q failed: %v", name, err)}
@@ -92,8 +92,8 @@ func (m Model) submitMessage(text string) tea.Cmd {
 	db := m.live.brokerDB
 	to := row.PeerID
 	return func() tea.Msg {
-		// Operator identity is "crew" — surfaced honestly, never spoofing a peer.
-		if err := msg.Send(db, "crew", to, text); err != nil {
+		// Operator identity is "agentcorp" — surfaced honestly, never spoofing a peer.
+		if err := msg.Send(db, "agentcorp", to, text); err != nil {
 			return actionResultMsg{text: fmt.Sprintf("send failed: %v", err)}
 		}
 		// "queued", never "delivered": the substrate never acks (S6).
@@ -194,7 +194,7 @@ func (m Model) doFire() tea.Cmd {
 		// not block the fire.
 		for _, notice := range lifecycle.ReparentNotices(moves) {
 			if child, ok := nodeByNodeID(nodes, notice.To); ok && child.PeerID != "" {
-				_ = msg.Send(db, "crew", child.PeerID, notice.Message)
+				_ = msg.Send(db, "agentcorp", child.PeerID, notice.Message)
 			}
 		}
 		killProcess(victim)

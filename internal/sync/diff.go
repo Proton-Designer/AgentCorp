@@ -1,4 +1,4 @@
-// Package sync keeps CREW's view of the org live: polling tmux for pane
+// Package sync keeps AgentCorp's view of the org live: polling tmux for pane
 // state, detecting death, and reconciling against the broker/store. The
 // decision logic is kept pure and table-tested, same discipline as layout/ —
 // the I/O (shelling out to tmux, ticking on a timer) lives at the edges.

@@ -1,4 +1,4 @@
-module github.com/aymanmohammed/crew
+module github.com/Proton-Designer/AgentCorp
 
 go 1.26.5
 

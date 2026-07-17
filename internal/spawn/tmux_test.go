@@ -30,7 +30,7 @@ func requireTmux(t *testing.T) {
 // new-window` attaches a window to an existing session, it does not create
 // a server+session from scratch (found by running it against a bare socket
 // and getting "error connecting ... No such file or directory"). This
-// mirrors production: spec §8 has the CREW console itself occupy window 0
+// mirrors production: spec §8 has the AgentCorp console itself occupy window 0
 // of an already-running session before any hire ever calls Launch, so
 // Launch legitimately assumes a session exists — bootstrapping one here is
 // test setup, not a workaround for a real gap.
@@ -38,7 +38,7 @@ func newTestAdapter(t *testing.T) *TmuxWindowAdapter {
 	t.Helper()
 	requireTmux(t)
 
-	socket := fmt.Sprintf("crew-spawn-test-%d-%d", os.Getpid(), time.Now().UnixNano())
+	socket := fmt.Sprintf("agentcorp-spawn-test-%d-%d", os.Getpid(), time.Now().UnixNano())
 	if out, err := exec.Command("tmux", "-L", socket, "new-session", "-d", "-s", "console", "-c", "/tmp").CombinedOutput(); err != nil {
 		t.Fatalf("bootstrap tmux session: %v: %s", err, out)
 	}
@@ -108,7 +108,7 @@ func TestDefaultClaudeArgsKeepsPromptAsOneElement(t *testing.T) {
 	if last != hostile {
 		t.Fatalf("prompt content was altered: got %q, want %q", last, hostile)
 	}
-	// Every element besides the prompt must be a fixed, CREW-controlled
+	// Every element besides the prompt must be a fixed, AgentCorp-controlled
 	// literal — never something built by concatenating operator text.
 	for _, a := range args[:len(args)-1] {
 		if strings.Contains(a, hostile) {
@@ -260,7 +260,7 @@ func TestLaunchAdversarialPromptContentNeverExecutes(t *testing.T) {
 	os.Remove(marker)
 	hostile := fmt.Sprintf("'; touch %s; ' `touch %s` $(touch %s)", marker, marker, marker)
 
-	socket := fmt.Sprintf("crew-spawn-test-prompt-%d", os.Getpid())
+	socket := fmt.Sprintf("agentcorp-spawn-test-prompt-%d", os.Getpid())
 	if out, err := exec.Command("tmux", "-L", socket, "new-session", "-d", "-s", "console", "-c", "/tmp").CombinedOutput(); err != nil {
 		t.Fatalf("bootstrap tmux session: %v: %s", err, out)
 	}
@@ -302,7 +302,7 @@ func TestLaunchAdversarialPromptContentNeverExecutes(t *testing.T) {
 // respawn-pane -k allocates a fresh pty, so the tty changes across it while the
 // pane id stays fixed. Capturing the tty from the pre-respawn shell records a
 // value no live peer will ever register with, and every hire silently fails to
-// bind. A real first hire surfaced exactly this: CREW stored ttys011, the pane
+// bind. A real first hire surfaced exactly this: AgentCorp stored ttys011, the pane
 // was actually ttys016, bind never matched, the node went 'failed' while the
 // agent ran on as unmanaged.
 //
@@ -311,7 +311,7 @@ func TestLaunchAdversarialPromptContentNeverExecutes(t *testing.T) {
 // after respawn.
 func TestLaunchTTYIsPostRespawnTTY(t *testing.T) {
 	requireTmux(t)
-	socket := fmt.Sprintf("crew-tty-regression-%d", os.Getpid())
+	socket := fmt.Sprintf("agentcorp-tty-regression-%d", os.Getpid())
 	if out, err := exec.Command("tmux", "-L", socket, "new-session", "-d", "-s", "console", "-c", "/tmp").CombinedOutput(); err != nil {
 		t.Fatalf("bootstrap tmux: %v: %s", err, out)
 	}

@@ -3,7 +3,7 @@ package vitals
 import (
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 // Throughput buckets msgs into one-minute-wide buckets covering

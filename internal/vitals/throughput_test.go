@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 func tmsg(sentAt string) broker.Message {

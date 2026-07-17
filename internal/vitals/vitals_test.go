@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 func vnode(id, peerID, parentID, state, createdAt string) store.Node {

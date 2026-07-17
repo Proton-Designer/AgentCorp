@@ -1,31 +1,31 @@
 # Architecture
 
-CREW is a terminal console that renders a company of persistent Claude Code
+AgentCorp is a terminal console that renders a company of persistent Claude Code
 sessions as a live, operable org chart. This document describes how it's put
 together and the invariants that hold it up.
 
 ## The load-bearing idea
 
-**The hierarchy is CREW's fiction. The mesh underneath is flat.**
+**The hierarchy is AgentCorp's fiction. The mesh underneath is flat.**
 
-`claude-peers` — the substrate CREW builds on — knows nothing about parents,
+`claude-peers` — the substrate AgentCorp builds on — knows nothing about parents,
 children, or roles. Its broker stores only `{id, pid, cwd, git_root, tty,
-summary}` per session. So every node in CREW is **two things**:
+summary}` per session. So every node in AgentCorp is **two things**:
 
 1. A real OS process — an interactive `claude` session in a tmux pane.
-2. A row in CREW's own SQLite store — `{node_id, role, parent_id, peer_id, …}`.
+2. A row in AgentCorp's own SQLite store — `{node_id, role, parent_id, peer_id, …}`.
 
 Bound together by the peer id. **Every lifecycle operation is a real process
 action plus a metadata edit**, and the two are reasoned about independently.
 This is why, for example, firing a manager doesn't orphan its reports: the
 children are independent processes; reparenting is purely a metadata edit (and
-CREW then messages the children so their behavior stays coherent with the new
+AgentCorp then messages the children so their behavior stays coherent with the new
 chart).
 
 ## Package layout
 
 ```
-cmd/crew            entry point + first-run consent
+cmd/agentcorp            entry point + first-run consent
 internal/
   store             sidecar SQLite — hierarchy, roles, node state machine (ours)
   broker            READ-ONLY reader for claude-peers' DB + pure reconcile
@@ -35,7 +35,7 @@ internal/
   spawn             process launch — argv arrays, never shell strings
   lifecycle         tree surgery: reparent, disband — pure
   hire              orchestration: spawn → clear gates → bind; + consent
-  msg               the one place CREW writes to the substrate; origin classify
+  msg               the one place AgentCorp writes to the substrate; origin classify
   ui                paint + Bubble Tea program
 ```
 
@@ -60,7 +60,7 @@ randomized trees.
                                  │ tea.Msg
                                  ▼
    ~/.config/    ┌─────────────────────────────────────────┐
-   crew/crew.db ─│  ui.Model: BuildTree → layout → paint   │
+   agentcorp/agentcorp.db ─│  ui.Model: BuildTree → layout → paint   │
    (ours)        │  vitals (HUD) · status glyphs           │
                  └─────────────────────────────────────────┘
 ```
@@ -79,7 +79,7 @@ randomized trees.
   the death time. Nodes are tombstoned, never hard-deleted, so a dead node still
   renders and its children keep a valid parent.
 - **Binding is by tty.** A spawned session's peer id doesn't exist until it
-  registers ~1s later, so CREW matches the new peer to its pending node by the
+  registers ~1s later, so AgentCorp matches the new peer to its pending node by the
   tmux pane's tty. (The tty is normalized across the `/dev/`-prefix boundary,
   and captured *after* the pane's process is replaced, since that reallocates
   the pty.)
@@ -93,5 +93,5 @@ randomized trees.
 Message delivery rides Anthropic's **Channels** feature (a research preview).
 All channel-dependent behavior is isolated so a change to that feature affects
 one seam rather than the whole codebase. See the README's "What it does not do"
-section for the full set of substrate limitations CREW documents rather than
+section for the full set of substrate limitations AgentCorp documents rather than
 papers over.

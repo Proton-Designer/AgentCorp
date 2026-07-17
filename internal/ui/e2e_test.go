@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // End-to-end through the real stack: SQLite -> store -> tree assembly ->

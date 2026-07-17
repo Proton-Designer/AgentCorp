@@ -8,25 +8,25 @@ import (
 	"time"
 )
 
-// ConsentText is shown once, on CREW's first run, before it can spawn anything.
+// ConsentText is shown once, on AgentCorp's first run, before it can spawn anything.
 //
 // This exists because of a deliberate ethical decision (spec §6.2 / SE-5), and
 // the reasoning belongs next to the code rather than only in a doc:
 //
 // Claude Code guards development channels behind a warning the human must
-// accept — on EVERY session, not once per machine. CREW clears that gate
+// accept — on EVERY session, not once per machine. AgentCorp clears that gate
 // automatically on every hire, which DEFEATS THE GATE BY DESIGN. The gate
 // exists so a person consciously opts into a risky capability; automating it
 // removes exactly the consciousness it was built to require.
 //
 // We do it anyway, because asking per-hire would make the tool unusable and
-// because running CREW *is* the opt-in. But that only holds if the consent is
+// because running AgentCorp *is* the opt-in. But that only holds if the consent is
 // obtained honestly, once, where a human can actually answer — showing the
 // same warning, and saying plainly that we will accept on their behalf from
 // then on. Silently clicking through a security prompt the user never saw
 // would be exactly the overselling this project refuses everywhere else.
 const ConsentText = `
-  CREW spawns agents with development channels enabled.
+  AgentCorp spawns agents with development channels enabled.
 
   Claude Code guards this behind a warning, and it asks EVERY session —
   not once per machine:
@@ -35,17 +35,17 @@ const ConsentText = `
        1. I am using this for local development
        2. Exit"
 
-  That warning exists so a human consciously opts in. CREW will accept it
+  That warning exists so a human consciously opts in. AgentCorp will accept it
   ON YOUR BEHALF for every agent it spawns, because asking you once per
   hire would make the tool unusable.
 
-  This means: any agent CREW spawns can push messages into your other
+  This means: any agent AgentCorp spawns can push messages into your other
   Claude Code sessions, and any local process can forge messages that
-  CREW will surface but cannot block.
+  AgentCorp will surface but cannot block.
 
   We looked for a flag to suppress the prompt properly. There isn't one.
 
-  If you'd rather not grant that, do not run CREW — the tool is the consent.
+  If you'd rather not grant that, do not run AgentCorp — the tool is the consent.
 `
 
 // ConsentRecord is what gets written once the operator agrees.
@@ -67,7 +67,7 @@ func ConsentPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", "crew", "consent"), nil
+	return filepath.Join(home, ".config", "agentcorp", "consent"), nil
 }
 
 // HasConsent reports whether the operator has agreed to the CURRENT text.
@@ -105,6 +105,6 @@ func RequireConsent(path string) error {
 	if HasConsent(path) {
 		return nil
 	}
-	return fmt.Errorf("CREW has not been granted consent to auto-accept the " +
-		"development-channels warning on your behalf; run `crew consent` to review it")
+	return fmt.Errorf("AgentCorp has not been granted consent to auto-accept the " +
+		"development-channels warning on your behalf; run `agentcorp consent` to review it")
 }

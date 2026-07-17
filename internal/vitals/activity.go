@@ -3,7 +3,7 @@ package vitals
 import (
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 // lastMessageByPeer returns, for each from_id appearing in msgs, the

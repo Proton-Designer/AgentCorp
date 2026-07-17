@@ -7,11 +7,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/hire"
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/sync"
-	"github.com/aymanmohammed/crew/internal/vitals"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/hire"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/sync"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 // TickInterval matches claude-peers' own broker poll cadence. Polling faster

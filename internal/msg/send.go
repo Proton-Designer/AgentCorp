@@ -1,4 +1,4 @@
-// Package msg is CREW's honest messaging layer: the one place CREW writes
+// Package msg is AgentCorp's honest messaging layer: the one place AgentCorp writes
 // to claude-peers' broker, plus the pure logic for classifying where a
 // message actually came from and for keeping "sent" and "acted on" — two
 // very different claims — impossible to conflate.
@@ -13,16 +13,16 @@ import (
 )
 
 // Send writes a new row to the broker's messages table — the one write path
-// CREW has; every other access to that database (internal/broker) is
+// AgentCorp has; every other access to that database (internal/broker) is
 // mode=ro. The target's own MCP server polls this row up and, if its
 // session's channel is active, pushes it into the live model's context.
-// CREW has no way to observe whether or when that actually happens — see
+// AgentCorp has no way to observe whether or when that actually happens — see
 // DeliveryState.
 //
 // Opened as a plain read-write connection, deliberately NOT layering on
 // stricter guarantees than the live system itself applies (e.g. this
 // package's own store/ enables foreign_keys=ON as a considered choice for
-// data CREW owns; this database belongs to a third party, and imposing our
+// data AgentCorp owns; this database belongs to a third party, and imposing our
 // own convention on it risks rejecting inserts the real claude-peers server
 // would have accepted).
 func Send(dbPath, from, to, text string) error {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 // All fixture text below is synthetic, authored for this test — never real

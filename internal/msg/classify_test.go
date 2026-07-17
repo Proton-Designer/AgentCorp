@@ -3,8 +3,8 @@ package msg
 import (
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 func TestClassifyKnownWhenFromIDBoundToOurNode(t *testing.T) {

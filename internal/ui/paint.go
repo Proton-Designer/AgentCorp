@@ -5,7 +5,7 @@ package ui
 import (
 	"strings"
 
-	"github.com/aymanmohammed/crew/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
 )
 
 // Render lays out the tree and paints it into a rune grid.

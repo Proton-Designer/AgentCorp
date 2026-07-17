@@ -1,6 +1,6 @@
 package broker
 
-import "github.com/aymanmohammed/crew/internal/store"
+import "github.com/Proton-Designer/AgentCorp/internal/store"
 
 // Binding is a proposed pending -> alive bind: a pending node whose recorded
 // bind_tty matches a live peer's tty. The caller performs the actual write

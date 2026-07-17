@@ -3,7 +3,7 @@ package vitals
 import (
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 )
 
 func TestNodeStatusDead(t *testing.T) {

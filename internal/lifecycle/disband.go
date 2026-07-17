@@ -3,7 +3,7 @@ package lifecycle
 import (
 	"fmt"
 
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // Disband decides the full cascade for the explicit "disband team" action

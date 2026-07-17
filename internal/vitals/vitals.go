@@ -8,8 +8,8 @@ package vitals
 import (
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // Summary is the vitals HUD's derived state (spec §5, REQUIREMENTS UI-4).

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/vitals"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 func nd(id, name, role string) store.Node {

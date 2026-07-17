@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/vitals"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 // confirmKind distinguishes the two destructive actions. They are deliberately

@@ -1,4 +1,4 @@
-// Package store owns CREW's sidecar database — the hierarchy, roles, and node
+// Package store owns AgentCorp's sidecar database — the hierarchy, roles, and node
 // metadata that claude-peers' broker knows nothing about.
 //
 // This package never writes to ~/.claude-peers.db. That database is owned by

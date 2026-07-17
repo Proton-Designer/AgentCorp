@@ -66,7 +66,7 @@ func skipIfNoTmux(t *testing.T) {
 func TestListPanesSeesARealIsolatedSession(t *testing.T) {
 	skipIfNoTmux(t)
 
-	sessionName := "crew-sync-test-listpanes"
+	sessionName := "agentcorp-sync-test-listpanes"
 	// Belt-and-suspenders: make sure no stale session from a prior failed run
 	// is lying around before we start.
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()

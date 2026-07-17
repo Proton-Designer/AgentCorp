@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/sync"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/sync"
 )
 
 func liveModel(t *testing.T) (Model, *store.Store) {

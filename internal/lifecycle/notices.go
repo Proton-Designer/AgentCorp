@@ -5,7 +5,7 @@ import "fmt"
 // Notice is one message that must be sent to a live agent to keep it
 // coherent with a reparent that already happened. Reparenting is purely a
 // metadata edit (spec §6.3) — the affected child has no way to know its
-// manager changed unless CREW tells it.
+// manager changed unless AgentCorp tells it.
 //
 // Delivery is not instant and this function does not pretend otherwise: per
 // spec §13.1 (turn-boundary batching, confirmed empirically — a channel

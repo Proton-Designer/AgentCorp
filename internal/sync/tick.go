@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // TickMsg is one poll cycle's result. It has no dependency on Bubble Tea —

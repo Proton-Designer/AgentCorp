@@ -1,7 +1,7 @@
 // Package hire orchestrates the full hire flow: create a pending node, spawn a
 // session, clear the startup gates, and bind the resulting peer.
 //
-// It is the seam where CREW's fiction (a node in our store) meets the mesh (a
+// It is the seam where AgentCorp's fiction (a node in our store) meets the mesh (a
 // real claude session registered with the broker). Everything it does is a
 // real process action PLUS a metadata edit — spec §4.
 package hire
@@ -102,7 +102,7 @@ func NewGateClearer(socket string) *GateClearer {
 				args = append(args, "-L", socket)
 			}
 			// send-keys with each key as its own argv element. This is the
-			// ONE place CREW types into a pane, and it only ever sends the
+			// ONE place AgentCorp types into a pane, and it only ever sends the
 			// literal key names below — never operator-supplied text, which
 			// would be the injection surface spawn/ exists to avoid.
 			args = append(args, "send-keys", "-t", paneID)

@@ -22,5 +22,5 @@ A clear description of the bug.
 **If it's a hire/spawn failure**
 Paste the bottom status line, and:
 ```
-sqlite3 ~/.config/crew/crew.db 'SELECT name,state,peer_id,bind_tty,spawn_ref FROM nodes'
+sqlite3 ~/.config/agentcorp/agentcorp.db 'SELECT name,state,peer_id,bind_tty,spawn_ref FROM nodes'
 ```

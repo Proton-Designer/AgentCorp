@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/aymanmohammed/crew/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
 )
 
 // mode is the input mode. The tree view is normal; everything else captures

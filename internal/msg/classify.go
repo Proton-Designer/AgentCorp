@@ -1,8 +1,8 @@
 package msg
 
 import (
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 // Origin is a message's trust classification.
@@ -28,7 +28,7 @@ func (o Origin) String() string {
 }
 
 // Classify determines a message's origin trust level. This is REQUIREMENTS
-// SE-2: CREW surfaces forged messages, it does not and cannot block them —
+// SE-2: AgentCorp surfaces forged messages, it does not and cannot block them —
 // the substrate has zero sender authentication (from_id is client-supplied
 // and unverified; the bundled CLI literally hardcodes from_id:"cli", an
 // identity that was never registered as a peer).

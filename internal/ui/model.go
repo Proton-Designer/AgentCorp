@@ -7,10 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/aymanmohammed/crew/internal/hire"
-	"github.com/aymanmohammed/crew/internal/layout"
-	"github.com/aymanmohammed/crew/internal/store"
-	"github.com/aymanmohammed/crew/internal/sync"
+	"github.com/Proton-Designer/AgentCorp/internal/hire"
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/sync"
 )
 
 const cardW, cardH = 14, 3
@@ -24,7 +24,7 @@ type Model struct {
 	height   int
 	quitting bool
 
-	// live is nil for a static model (tests, `crew --once`). When set, the
+	// live is nil for a static model (tests, `agentcorp --once`). When set, the
 	// model polls the broker and tmux every tick.
 	live *liveState
 
@@ -295,7 +295,7 @@ func (m Model) activeInput() input {
 
 // header renders the title bar. The vitals live in hudLine below it.
 func (m Model) header() string {
-	title := "╭─ CREW "
+	title := "╭─ AgentCorp "
 	if pad := m.width - len([]rune(title)) - 1; pad > 0 {
 		title += strings.Repeat("─", pad) + "╮"
 	}
@@ -321,15 +321,13 @@ func truncate(s string, n int) string {
 func emptyState(width int) string {
 	lines := []string{
 		"",
-		"   ██████ ██████  ███████ ██     ██",
-		"  ██      ██   ██ ██      ██     ██",
-		"  ██      ██████  █████   ██  █  ██",
-		"  ██      ██   ██ ██      ██ ███ ██",
-		"   ██████ ██   ██ ███████  ███ ███ ",
+		"╭───────────────────────╮",
+		"│   A G E N T C O R P   │",
+		"╰───────────────────────╯",
 		"",
-		"  a company of agents you can see and steer",
+		"a company of agents you can see and steer",
 		"",
-		"  press h to hire your first agent",
+		"press h to hire your first agent",
 		"",
 	}
 	var b strings.Builder

@@ -1,24 +1,24 @@
-# Contributing to CREW
+# Contributing to AgentCorp
 
-Thanks for your interest. CREW is a terminal console for running a company of
+Thanks for your interest. AgentCorp is a terminal console for running a company of
 AI agents on top of [`claude-peers`](https://github.com/louislva/claude-peers-mcp).
 This guide covers how to get set up and what we expect from a change.
 
 ## Getting started
 
 ```sh
-git clone https://github.com/aymanmohammed/crew && cd crew
-go build ./cmd/crew
+git clone https://github.com/Proton-Designer/AgentCorp && cd AgentCorp
+go build ./cmd/agentcorp
 go test ./...
 ```
 
-Requirements: **Go 1.22+** and **tmux** (CREW spawns agents into tmux windows).
+Requirements: **Go 1.22+** and **tmux** (AgentCorp spawns agents into tmux windows).
 `claude-peers` and Claude Code are needed to run against a live substrate, but
 not to build or run the test suite.
 
 ## The bar for a change
 
-CREW has one non-negotiable principle: **it never tells the operator something
+AgentCorp has one non-negotiable principle: **it never tells the operator something
 it can't back up.** Forged messages are surfaced, not claimed-blocked. Agent
 status is `active`/`quiet` (derived from real signals), never a guessed
 "working". Delivery is shown as "queued", never "delivered", because the
@@ -40,7 +40,7 @@ Concretely, we ask that every change:
 ## Verifying behavior, not just tests
 
 For anything touching the spawn/hire/tmux path, run it for real once —
-`go build ./cmd/crew && ./crew` inside a tmux session — and confirm the
+`go build ./cmd/agentcorp && ./agentcorp` inside a tmux session — and confirm the
 behavior you changed. Several of this project's sharpest bugs were invisible to
 green tests and only surfaced by running the thing. "It typechecks" and "the
 tests pass" are necessary, not sufficient.
@@ -55,7 +55,7 @@ tests pass" are necessary, not sufficient.
 
 Open an issue with the bug template. For anything involving spawned sessions or
 tty binding, include the output of the bottom status line and, if you can, the
-relevant rows from `~/.config/crew/crew.db` (`sqlite3 ~/.config/crew/crew.db
+relevant rows from `~/.config/agentcorp/agentcorp.db` (`sqlite3 ~/.config/agentcorp/agentcorp.db
 'SELECT name,state,peer_id,bind_tty,spawn_ref FROM nodes'`) — that's usually
 where a hire failure explains itself.
 

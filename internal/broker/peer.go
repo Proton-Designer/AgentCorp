@@ -1,4 +1,4 @@
-// Package broker is the read side of the substrate: how CREW learns what
+// Package broker is the read side of the substrate: how AgentCorp learns what
 // agents actually exist. ~/.claude-peers.db is owned by claude-peers, not us
 // — we never write, migrate, or lock it (spec §9). Connections are opened
 // mode=ro so that property holds even if a bug tries to violate it: verified

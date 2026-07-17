@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/spawn"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/spawn"
 )
 
 // THE ONE THAT MATTERS. An unset consent path must FAIL CLOSED. A wiring bug

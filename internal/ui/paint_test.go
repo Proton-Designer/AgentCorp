@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/aymanmohammed/crew/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
 )
 
 // threeLevelTree builds the 7-node shape from the spec's hero mockup:

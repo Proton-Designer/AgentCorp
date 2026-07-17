@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aymanmohammed/crew/internal/broker"
-	"github.com/aymanmohammed/crew/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
 
 func newTickTestStore(t *testing.T) *store.Store {

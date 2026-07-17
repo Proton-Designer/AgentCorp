@@ -1,6 +1,6 @@
 package msg
 
-// DeliveryState is what CREW actually knows about a message, versus what it
+// DeliveryState is what AgentCorp actually knows about a message, versus what it
 // can only infer. Kept as one small enum with exactly two values so the two
 // claims can never be silently upgraded into each other: notifications are
 // never acknowledged (spec §S6/§10), so a successful Send proves the message
