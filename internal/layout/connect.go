@@ -11,11 +11,11 @@ type Seg struct {
 //
 // Geometry, for vgap=2:
 //
-//	    ╭─ parent ─╮
-//	         │        <- stem, at parent center
-//	    ┌────┴────┐   <- bus row: corners at child centers, tee under parent
-//	    │         │   <- drops, at each child center
-//	 child     child
+//	   ╭─ parent ─╮
+//	        │        <- stem, at parent center
+//	   ┌────┴────┐   <- bus row: corners at child centers, tee under parent
+//	   │         │   <- drops, at each child center
+//	child     child
 func Connectors(root *Node, vgap int) []Seg {
 	var out []Seg
 	var walk func(*Node)
