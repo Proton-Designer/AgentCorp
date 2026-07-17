@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/aymanmohammed/crew/internal/hire"
 	"github.com/aymanmohammed/crew/internal/layout"
 	"github.com/aymanmohammed/crew/internal/store"
 	"github.com/aymanmohammed/crew/internal/sync"
@@ -26,6 +27,19 @@ type Model struct {
 	// live is nil for a static model (tests, `crew --once`). When set, the
 	// model polls the broker and tmux every tick.
 	live *liveState
+
+	// Modal input state. Exactly one modal is open at a time (mode is an enum,
+	// not a set of flags), so these never conflict.
+	mode        mode
+	hireInput   input
+	msgInput    input
+	searchInput input
+	filter      string
+	confirm     *confirmState
+
+	// flash is a transient one-line status (last action's outcome). Cleared
+	// on the next keypress so it never lingers as stale truth.
+	flash string
 }
 
 // BuildTree assembles a layout tree from store rows.
@@ -77,12 +91,24 @@ func New(nodes []store.Node) Model {
 }
 
 // NewLive builds a model that polls the broker and tmux every TickInterval.
+// The hire flow is left nil; call WithHire to enable spawning.
 func NewLive(st *store.Store, nodes []store.Node) Model {
 	m := New(nodes)
 	m.live = &liveState{
 		st:        st,
 		lastPanes: map[string]sync.Pane{},
 		brokerDB:  BrokerDBPath(),
+	}
+	return m
+}
+
+// WithHire enables the hire action by wiring in an assembled flow and the
+// working directory new agents are spawned into. Without this, pressing 'h'
+// reports "hire unavailable" rather than silently doing nothing.
+func (m Model) WithHire(flow *hire.Flow, workdir string) Model {
+	if m.live != nil {
+		m.live.hireFlow = flow
+		m.live.hireWorkdir = workdir
 	}
 	return m
 }
@@ -136,8 +162,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyTick(msg)
 		return m, nil
 
+	case actionResultMsg:
+		m.flash = msg.text
+		return m, nil
+
 	case tea.KeyMsg:
-		switch msg.String() {
+		key := msg.String()
+		m.flash = "" // any keypress clears a stale status line
+
+		// A modal, if open, gets first refusal on the key.
+		if m.mode != modeNormal {
+			nm, cmd, consumed := m.handleModalKey(key)
+			if consumed {
+				return nm, cmd
+			}
+			m = nm
+		}
+
+		switch key {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
@@ -146,18 +188,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.flat)-1 {
 				m.cursor++
 			}
-
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
 			}
-
 		case " ":
-			// Fold only makes sense on a node with children.
 			if n := m.selected(); n != nil && len(n.Children) > 0 {
 				n.Collapsed = !n.Collapsed
 				m.reflatten()
 			}
+		case "h":
+			m.openHire()
+		case "m":
+			m.openMessage()
+		case "/":
+			m.openSearch()
+		case "x":
+			m.openFireConfirm()
+		case "D":
+			m.openDisbandConfirm()
 		}
 	}
 	return m, nil
@@ -205,18 +254,38 @@ func (m Model) View() string {
 		b.WriteString("\n")
 	}
 
-	if n := m.selected(); n != nil {
-		fold := ""
-		if len(n.Children) > 0 {
-			fold = " · space to fold"
-			if n.Collapsed {
-				fold = " · space to unfold"
-			}
+	// A modal, if open, is drawn over the footer area and owns the input line.
+	switch m.mode {
+	case modeConfirm:
+		if m.confirm != nil {
+			b.WriteString("\n" + renderConfirm(m.confirm, m.width))
 		}
-		b.WriteString(fmt.Sprintf("  selected: %s%s\n", n.ID, fold))
+	case modeHire, modeMessage, modeSearch:
+		b.WriteString("\n  " + m.activeInput().prompt + " " + m.activeInput().value + "▏\n")
+		b.WriteString("  ⏎ confirm · esc cancel\n")
+	default:
+		if n := m.selected(); n != nil {
+			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
+		}
+		if m.flash != "" {
+			b.WriteString("  " + m.flash + "\n")
+		}
+		b.WriteString("  ↑↓ move · space fold · h hire · m msg · x fire · shift-D disband · / find · q quit\n")
 	}
-	b.WriteString("  ↑↓ move · space fold · q quit\n")
 	return b.String()
+}
+
+// activeInput returns the text field for the current modal.
+func (m Model) activeInput() input {
+	switch m.mode {
+	case modeHire:
+		return m.hireInput
+	case modeMessage:
+		return m.msgInput
+	case modeSearch:
+		return m.searchInput
+	}
+	return input{}
 }
 
 // header renders the title bar. The vitals live in hudLine below it.

@@ -155,3 +155,21 @@ func (s *Store) SetState(nodeID, state string) error {
 	}
 	return nil
 }
+
+// SetParent re-attaches a node to a new parent (reparenting after a fire).
+// Empty newParent makes the node a root.
+func (s *Store) SetParent(nodeID, newParent string) error {
+	res, err := s.db.Exec(`UPDATE nodes SET parent_id = ? WHERE node_id = ?`,
+		nullify(newParent), nodeID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("set parent: node %s not found", nodeID)
+	}
+	return nil
+}

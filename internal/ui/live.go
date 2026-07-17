@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aymanmohammed/crew/internal/broker"
+	"github.com/aymanmohammed/crew/internal/hire"
 	"github.com/aymanmohammed/crew/internal/store"
 	"github.com/aymanmohammed/crew/internal/sync"
 	"github.com/aymanmohammed/crew/internal/vitals"
@@ -55,6 +56,11 @@ type liveState struct {
 	spark   string
 	ticker  string
 	started time.Time
+
+	// hire dependencies, nil in a read-only console. hireWorkdir is where a
+	// new agent is spawned (defaults to the operator's cwd).
+	hireFlow    *hire.Flow
+	hireWorkdir string
 }
 
 // tickCmd runs one poll cycle off the UI goroutine and delivers the result
