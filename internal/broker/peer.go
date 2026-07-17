@@ -10,8 +10,6 @@ package broker
 import (
 	"database/sql"
 	"fmt"
-
-	_ "modernc.org/sqlite"
 )
 
 // Peer is a row from the broker's peers table, verified against the live
@@ -38,39 +36,28 @@ type Peer struct {
 // what would make a stale/missing broker file look identical to a quiet
 // company, the same failure mode sync/ must avoid for tmux list-panes.
 func ListPeers(dbPath string) ([]Peer, error) {
-	dsn := fmt.Sprintf("file:%s?mode=ro", dbPath)
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("open broker db: %w", err)
-	}
-	defer db.Close()
-
-	rows, err := db.Query(`
-		SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen
-		FROM peers`)
-	if err != nil {
-		return nil, fmt.Errorf("query peers: %w", err)
-	}
-	defer rows.Close()
-
 	peers := []Peer{}
-	for rows.Next() {
-		var p Peer
-		var gitRoot, tty sql.NullString
-		if err := rows.Scan(&p.ID, &p.PID, &p.CWD, &gitRoot, &tty,
-			&p.Summary, &p.RegisteredAt, &p.LastSeen); err != nil {
-			return nil, fmt.Errorf("scan peer: %w", err)
-		}
-		if gitRoot.Valid {
-			p.GitRoot = gitRoot.String
-		}
-		if tty.Valid {
-			p.TTY = tty.String
-		}
-		peers = append(peers, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate peers: %w", err)
+	err := queryReadOnly(dbPath, `
+		SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen
+		FROM peers`,
+		func(rows *sql.Rows) error {
+			var p Peer
+			var gitRoot, tty sql.NullString
+			if err := rows.Scan(&p.ID, &p.PID, &p.CWD, &gitRoot, &tty,
+				&p.Summary, &p.RegisteredAt, &p.LastSeen); err != nil {
+				return fmt.Errorf("scan peer: %w", err)
+			}
+			if gitRoot.Valid {
+				p.GitRoot = gitRoot.String
+			}
+			if tty.Valid {
+				p.TTY = tty.String
+			}
+			peers = append(peers, p)
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
 	return peers, nil
 }
