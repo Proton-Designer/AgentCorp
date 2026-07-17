@@ -147,7 +147,7 @@ internal/
 
 ## Status
 
-**Phases 1–2 complete.** The chart renders, polls the live substrate every second, and the HUD reports real vitals. Phase 3 (hire/fire/message) is in progress.
+**Phases 1–3 complete.** The chart renders, polls the live substrate every second, reports real vitals, and the full hire → bind → message → fire → disband lifecycle works. ~180 tests, single 11MB binary.
 
 ## License
 
