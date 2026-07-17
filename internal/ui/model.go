@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/company"
 	"github.com/Proton-Designer/AgentCorp/internal/hire"
 	"github.com/Proton-Designer/AgentCorp/internal/layout"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
@@ -94,10 +96,13 @@ func New(nodes []store.Node) Model {
 // The hire flow is left nil; call WithHire to enable spawning.
 func NewLive(st *store.Store, nodes []store.Node) Model {
 	m := New(nodes)
+	brokerDB := BrokerDBPath()
 	m.live = &liveState{
 		st:        st,
 		lastPanes: map[string]sync.Pane{},
-		brokerDB:  BrokerDBPath(),
+		brokerDB:  brokerDB,
+		// Default: unscoped — every session on the machine. WithScope narrows it.
+		listPeers: func() ([]broker.Peer, error) { return broker.ListPeers(brokerDB) },
 	}
 	return m
 }
@@ -110,6 +115,20 @@ func (m Model) WithHire(flow *hire.Flow, workdir string) Model {
 		m.live.hireFlow = flow
 		m.live.hireWorkdir = workdir
 	}
+	return m
+}
+
+// WithScope narrows the model to a single company: every peer read is filtered
+// to sessions whose working directory belongs to companyRoot, and the company's
+// name is shown in the header. An empty companyRoot leaves the model unscoped
+// (all sessions on the machine), so callers can pass a resolution through
+// unconditionally.
+func (m Model) WithScope(c company.Company, companyRoot string) Model {
+	if m.live == nil {
+		return m
+	}
+	m.live.company = c
+	m.live.listPeers = ScopedPeers(companyRoot, m.live.listPeers)
 	return m
 }
 

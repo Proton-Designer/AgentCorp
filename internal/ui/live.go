@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/company"
 	"github.com/Proton-Designer/AgentCorp/internal/hire"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 	"github.com/Proton-Designer/AgentCorp/internal/sync"
@@ -47,6 +48,16 @@ type liveState struct {
 	lastSync  time.Time
 	stale     bool // true when the most recent poll failed
 
+	// listPeers is the company-scoped peer source. It defaults to an unscoped
+	// read of the whole broker; WithScope narrows it to one company. Every peer
+	// read — the tick's reconcile feed and the HUD re-read — goes through this
+	// one function so scoping can never be applied inconsistently.
+	listPeers func() ([]broker.Peer, error)
+
+	// company is the resolved company for this launch, for display only. Zero
+	// value (empty Name) means the directory is unscoped.
+	company company.Company
+
 	// Last known-good substrate readings. Kept across a failed poll so the
 	// HUD can show the last truth rather than zeros — zeros would read as
 	// "the company is empty", which is a different and false claim.
@@ -73,7 +84,7 @@ func (m Model) tickCmd() tea.Cmd {
 	return func() tea.Msg {
 		msg, next := sync.Tick(
 			sync.ListPanes,
-			func() ([]broker.Peer, error) { return broker.ListPeers(live.brokerDB) },
+			live.listPeers,
 			live.st,
 			live.lastPanes,
 		)
@@ -126,7 +137,7 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	// We keep the last known-good readings rather than zeroing them — zeros
 	// would render as "the company is empty", which is a different false claim
 	// than "we don't know".
-	if peers, err := broker.ListPeers(m.live.brokerDB); err == nil {
+	if peers, err := m.live.listPeers(); err == nil {
 		m.live.peers = peers
 	}
 	if msgs, err := broker.ListMessages(m.live.brokerDB); err == nil {

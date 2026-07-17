@@ -3,6 +3,7 @@ package company
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -177,6 +178,32 @@ func TestCreateValidatesInput(t *testing.T) {
 	}
 	if _, err := Create(root, "Name", "  "); err == nil {
 		t.Fatal("empty id must be rejected")
+	}
+}
+
+func TestCreateWritesGitignore(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Create(root, "Acme", "co-1"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ConfigDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("expected a .gitignore in .agentcorp: %v", err)
+	}
+	s := string(data)
+	// Must ignore everything by default but keep the shareable definition.
+	for _, want := range []string{"*", "!.gitignore", "!" + ConfigFile} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("gitignore missing %q:\n%s", want, s)
+		}
+	}
+}
+
+func TestStorePathIsUnderConfigDir(t *testing.T) {
+	got := StorePath("/co/root")
+	want := filepath.Join("/co/root", ConfigDir, "agentcorp.db")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 }
 

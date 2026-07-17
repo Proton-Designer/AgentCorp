@@ -124,5 +124,23 @@ func Create(dir, name, id string) (Company, error) {
 	if err := os.WriteFile(cfgPath, FormatConfig(c), 0o644); err != nil {
 		return Company{}, fmt.Errorf("create company: write %s: %w", cfgPath, err)
 	}
+	// company.toml defines the company and is meant to be shared (committed);
+	// everything else AgentCorp writes here — the per-company store, and any
+	// future local state — is machine-local runtime data. This .gitignore keeps
+	// that distinction so a team commits the definition without leaking one
+	// laptop's live org state into the repo.
+	gitignore := "# AgentCorp: share the company definition, keep runtime state local.\n*\n!.gitignore\n!" + ConfigFile + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, ".gitignore"), []byte(gitignore), 0o644); err != nil {
+		return Company{}, fmt.Errorf("create company: write .gitignore: %w", err)
+	}
 	return c, nil
+}
+
+// StorePath returns the per-company sidecar store path for a resolved company
+// root: <root>/.agentcorp/agentcorp.db. Callers use this so a company's
+// hierarchy lives with the company rather than in one machine-global store —
+// which is also what keeps launching in one company from tombstoning another's
+// nodes (their peers are filtered out of the scoped view).
+func StorePath(root string) string {
+	return filepath.Join(root, ConfigDir, "agentcorp.db")
 }
