@@ -118,17 +118,19 @@ func (m Model) WithHire(flow *hire.Flow, workdir string) Model {
 	return m
 }
 
-// WithScope narrows the model to a single company: every peer read is filtered
-// to sessions whose working directory belongs to companyRoot, and the company's
-// name is shown in the header. An empty companyRoot leaves the model unscoped
-// (all sessions on the machine), so callers can pass a resolution through
+// WithScope records the company this console is showing: its name titles the
+// header, and its root scopes the "unmanaged" adoption list to sessions inside
+// the company. Crucially it does NOT scope the peer source used for liveness —
+// a bound node lives or dies by the real broker, never by this filter — so a
+// transient resolution blip can't tombstone a live agent. An empty companyRoot
+// leaves the model unscoped, so callers can pass a resolution through
 // unconditionally.
 func (m Model) WithScope(c company.Company, companyRoot string) Model {
 	if m.live == nil {
 		return m
 	}
 	m.live.company = c
-	m.live.listPeers = ScopedPeers(companyRoot, m.live.listPeers)
+	m.live.companyRoot = companyRoot
 	return m
 }
 

@@ -4,9 +4,62 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Proton-Designer/AgentCorp/internal/broker"
 	"github.com/Proton-Designer/AgentCorp/internal/company"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
+	"github.com/Proton-Designer/AgentCorp/internal/sync"
 )
+
+// The regression this locks: company scoping must never wrap the liveness peer
+// source. If it did, a single transient resolution blip that drops an
+// in-company peer for one tick would make reconcile tombstone the live node
+// forever. WithScope must leave the raw source untouched.
+func TestWithScopeDoesNotFilterLivenessSource(t *testing.T) {
+	m, _ := liveModel(t)
+	called := false
+	m.live.listPeers = func() ([]broker.Peer, error) {
+		called = true
+		return []broker.Peer{{ID: "px", CWD: "/out/of/company"}}, nil
+	}
+	m = m.WithScope(company.Company{ID: "co-1", Name: "Galaxy"}, "/galaxy/root")
+
+	peers, err := m.live.listPeers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called || len(peers) != 1 || peers[0].ID != "px" {
+		t.Fatalf("WithScope altered the liveness peer source (got %+v); a scoping blip could now tombstone live agents", peers)
+	}
+}
+
+// A bound node whose peer is present in the RAW broker must count as alive even
+// when the console is scoped to a different company — liveness follows the real
+// broker, not the company filter.
+func TestBoundNodeStaysAliveUnderForeignScope(t *testing.T) {
+	m, _ := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "ceo", Role: "lead", PeerID: "px",
+			Workdir: "/tmp", SpawnMode: "tmux-window", State: "alive", CreatedAt: "1"},
+	)
+	// Scope to a company the peer's cwd does NOT belong to.
+	m = m.WithScope(company.Company{ID: "co-1", Name: "Galaxy"}, "/galaxy/root")
+	m.live.listPeers = func() ([]broker.Peer, error) {
+		return []broker.Peer{{ID: "px", CWD: "/somewhere/else", TTY: "ttys9"}}, nil
+	}
+
+	m.applyTick(sync.TickMsg{}) // a successful tick
+
+	if m.live.summary.Dead != 0 {
+		t.Fatalf("bound node counted dead under a foreign scope (Dead=%d); liveness must follow the raw broker", m.live.summary.Dead)
+	}
+	if m.live.summary.Alive != 1 {
+		t.Fatalf("bound node not alive though its peer is in the raw broker (Alive=%d)", m.live.summary.Alive)
+	}
+	// The out-of-company peer is bound, so it isn't unmanaged; the scoped
+	// unmanaged count must be zero, not leak it.
+	if m.live.summary.Unmanaged != 0 {
+		t.Fatalf("Unmanaged=%d, want 0", m.live.summary.Unmanaged)
+	}
+}
 
 func TestHeaderShowsCompanyWhenScoped(t *testing.T) {
 	m, _ := liveModel(t)

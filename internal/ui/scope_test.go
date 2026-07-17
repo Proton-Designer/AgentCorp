@@ -18,7 +18,7 @@ func canonDir(t *testing.T, dir string) string {
 	return resolved
 }
 
-func TestScopedPeersKeepsOnlyInCompany(t *testing.T) {
+func TestInCompanyKeepsOnlyInCompany(t *testing.T) {
 	root := t.TempDir()
 	if _, err := company.Create(root, "Acme", "co-1"); err != nil {
 		t.Fatal(err)
@@ -29,18 +29,13 @@ func TestScopedPeersKeepsOnlyInCompany(t *testing.T) {
 	}
 	outside := t.TempDir() // a different tree, no company
 
-	raw := func() ([]broker.Peer, error) {
-		return []broker.Peer{
-			{ID: "p-in-root", CWD: root},
-			{ID: "p-in-sub", CWD: inside},
-			{ID: "p-out", CWD: outside},
-		}, nil
+	peers := []broker.Peer{
+		{ID: "p-in-root", CWD: root},
+		{ID: "p-in-sub", CWD: inside},
+		{ID: "p-out", CWD: outside},
 	}
+	got := InCompany(canonDir(t, root), peers)
 
-	got, err := ScopedPeers(canonDir(t, root), raw)()
-	if err != nil {
-		t.Fatal(err)
-	}
 	ids := map[string]bool{}
 	for _, p := range got {
 		ids[p.ID] = true
@@ -53,24 +48,10 @@ func TestScopedPeersKeepsOnlyInCompany(t *testing.T) {
 	}
 }
 
-func TestScopedPeersUnscopedReturnsAll(t *testing.T) {
-	raw := func() ([]broker.Peer, error) {
-		return []broker.Peer{{ID: "a", CWD: "/tmp/x"}, {ID: "b", CWD: "/tmp/y"}}, nil
-	}
-	got, err := ScopedPeers("", raw)()
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestInCompanyUnscopedReturnsAll(t *testing.T) {
+	peers := []broker.Peer{{ID: "a", CWD: "/tmp/x"}, {ID: "b", CWD: "/tmp/y"}}
+	got := InCompany("", peers)
 	if len(got) != 2 {
 		t.Fatalf("unscoped should pass all peers through, got %d", len(got))
-	}
-}
-
-func TestScopedPeersPropagatesReadError(t *testing.T) {
-	sentinel := os.ErrPermission
-	raw := func() ([]broker.Peer, error) { return nil, sentinel }
-	_, err := ScopedPeers("/some/root", raw)()
-	if err != sentinel {
-		t.Fatalf("expected the raw read error to propagate, got %v", err)
 	}
 }

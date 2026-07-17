@@ -5,40 +5,30 @@ import (
 	"github.com/Proton-Designer/AgentCorp/internal/company"
 )
 
-// ScopedPeers wraps a raw peer source so it yields only the peers whose working
-// directory belongs to the company rooted at companyRoot (nearest-wins, per
-// company.Member). This is the single chokepoint that turns claude-peers' flat,
-// machine-wide mesh into one company's view: everything downstream — reconcile,
-// unmanaged detection, the HUD, layout — sees only in-company peers because
-// they never receive the rest.
+// InCompany returns the subset of peers whose working directory belongs to the
+// company rooted at companyRoot (nearest-wins, per company.Member).
 //
-// companyRoot == "" means unscoped: the raw source is returned unchanged, so a
-// directory that was never linked to a company still shows every session on the
-// machine, exactly as before this feature existed.
+// This is a DISPLAY filter, and only a display filter. It is used to scope the
+// "unmanaged" adoption list to one company so a machine running many unrelated
+// sessions doesn't offer them all for adoption. It is deliberately NOT used to
+// decide whether an already-bound node is alive: a node we own lives or dies by
+// the real broker, never by whether a per-tick filesystem resolution happened
+// to include its peer this instant. Coupling liveness to this filter is exactly
+// what let a single transient resolution blip tombstone a live agent forever.
 //
-// A raw-read failure propagates unchanged (unknown, never empty). A per-peer
-// membership check that itself faults — a peer whose cwd can't be resolved —
-// excludes that one peer rather than failing the whole read: one unreadable
-// working directory must not blank out the company.
-func ScopedPeers(companyRoot string, raw func() ([]broker.Peer, error)) func() ([]broker.Peer, error) {
+// companyRoot == "" (unscoped) returns peers unchanged. A peer whose membership
+// can't be resolved is excluded from the scoped view — it is not shown, but it
+// is never treated as dead.
+func InCompany(companyRoot string, peers []broker.Peer) []broker.Peer {
 	if companyRoot == "" {
-		return raw
+		return peers
 	}
-	return func() ([]broker.Peer, error) {
-		peers, err := raw()
-		if err != nil {
-			return nil, err
+	kept := make([]broker.Peer, 0, len(peers))
+	for _, p := range peers {
+		ok, err := company.Member(companyRoot, p.CWD)
+		if err == nil && ok {
+			kept = append(kept, p)
 		}
-		kept := make([]broker.Peer, 0, len(peers))
-		for _, p := range peers {
-			ok, err := company.Member(companyRoot, p.CWD)
-			if err != nil {
-				continue // can't confirm membership -> not shown, but don't fail the read
-			}
-			if ok {
-				kept = append(kept, p)
-			}
-		}
-		return kept, nil
 	}
+	return kept
 }

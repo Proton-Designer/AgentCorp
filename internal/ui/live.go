@@ -48,15 +48,20 @@ type liveState struct {
 	lastSync  time.Time
 	stale     bool // true when the most recent poll failed
 
-	// listPeers is the company-scoped peer source. It defaults to an unscoped
-	// read of the whole broker; WithScope narrows it to one company. Every peer
-	// read — the tick's reconcile feed and the HUD re-read — goes through this
-	// one function so scoping can never be applied inconsistently.
+	// listPeers is the RAW broker peer source — never company-scoped. Both the
+	// tick's reconcile feed (which decides life and death, and writes
+	// tombstones) and the HUD read from it, so an agent's liveness always
+	// reflects the real broker. Scoping is applied only to the unmanaged count,
+	// via companyRoot below — see applyTick.
 	listPeers func() ([]broker.Peer, error)
 
 	// company is the resolved company for this launch, for display only. Zero
 	// value (empty Name) means the directory is unscoped.
 	company company.Company
+
+	// companyRoot scopes the "unmanaged" adoption count to this company. Empty
+	// means unscoped. It deliberately does NOT gate liveness.
+	companyRoot string
 
 	// Last known-good substrate readings. Kept across a failed poll so the
 	// HUD can show the last truth rather than zeros — zeros would read as
@@ -145,6 +150,12 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	}
 
 	m.live.summary = vitals.Vitals(nodes, m.live.peers, m.live.msgs, now, ActivityWindow)
+	// Liveness (Alive/Active/Quiet/Dead) is computed from the raw peer list
+	// above — correct, and immune to a scoping blip. Only the unmanaged count
+	// is scoped to the company, so the HUD doesn't count every other company's
+	// sessions as adoptable here. InCompany with an empty root is a no-op.
+	m.live.summary.Unmanaged = len(broker.Reconcile(nodes,
+		InCompany(m.live.companyRoot, m.live.peers)).Unmanaged)
 	if m.live.started.IsZero() {
 		m.live.started = now
 	}

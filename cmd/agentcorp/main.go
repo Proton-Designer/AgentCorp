@@ -86,11 +86,13 @@ func run() error {
 		return fmt.Errorf("list nodes: %w", err)
 	}
 
-	// The peer source is scoped to the company (unscoped root == "" passes every
-	// peer through). The hire flow and the live model share the same source so
-	// scoping is applied identically everywhere a peer is read.
+	// Peers are read RAW (never company-scoped) for anything that decides
+	// liveness or binding: a node we own must live or die by the real broker,
+	// and a fresh spawn must be bindable the instant it registers. Company
+	// scoping is a display concern applied later, only to the unmanaged count
+	// (see ui.WithScope / applyTick). The per-company store already scopes which
+	// nodes exist, so the chart itself shows only this company's agents.
 	rawPeers := func() ([]broker.Peer, error) { return broker.ListPeers(ui.BrokerDBPath()) }
-	scopedPeers := ui.ScopedPeers(root, rawPeers)
 
 	// Assemble the hire flow. The tmux socket is empty so AgentCorp uses the
 	// operator's own tmux server — the console and the agents share it.
@@ -98,7 +100,7 @@ func run() error {
 		Store:       s,
 		Adapter:     spawn.NewTmuxWindowAdapter(""),
 		Gates:       hire.NewGateClearer(""),
-		ListPeers:   scopedPeers,
+		ListPeers:   rawPeers,
 		IDFunc:      func() string { return "n-" + time.Now().UTC().Format("20060102T150405.000000") },
 		ConsentPath: consentPath,
 		// A freshly spawned claude cold-starts every configured MCP server
