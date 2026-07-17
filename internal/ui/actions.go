@@ -60,7 +60,16 @@ func (m Model) submitHire(name string) tea.Cmd {
 	workdir := m.live.hireWorkdir
 
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		// The hire's overall deadline MUST exceed the bind wait, or this context
+		// cancels a hire that was about to succeed and the bind timeout becomes a
+		// lie (observed: a session registered fine but the hire was marked failed
+		// with "context deadline exceeded"). Budget = the bind wait plus margin
+		// for spawn and gate-clearing, which have their own shorter timeouts.
+		hireDeadline := flow.BindTimeout + 60*time.Second
+		if hireDeadline < 90*time.Second {
+			hireDeadline = 90 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), hireDeadline)
 		defer cancel()
 		res, err := flow.Run(ctx, hire.Request{
 			Name:     name,
