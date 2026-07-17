@@ -12,7 +12,7 @@ go build ./cmd/agentcorp
 go test ./...
 ```
 
-Requirements: **Go 1.22+** and **tmux** (AgentCorp spawns agents into tmux windows).
+Requirements: **Go 1.25+** and **tmux** (AgentCorp spawns agents into tmux windows).
 `claude-peers` and Claude Code are needed to run against a live substrate, but
 not to build or run the test suite.
 

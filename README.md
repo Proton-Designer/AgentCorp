@@ -80,7 +80,7 @@ Message delivery rides Anthropic's **Channels** feature, which is a research pre
 
 ## Requirements
 
-- **Go 1.22+** (to build)
+- **Go 1.25+** (to build)
 - **tmux** — AgentCorp spawns each agent into its own tmux window
 - **[`claude-peers`](https://github.com/louislva/claude-peers-mcp)** installed and registered
 - **Claude Code**, launched with channels enabled

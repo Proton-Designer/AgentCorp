@@ -1,6 +1,6 @@
 module github.com/Proton-Designer/AgentCorp
 
-go 1.26.5
+go 1.25.0
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
