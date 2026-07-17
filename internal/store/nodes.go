@@ -108,3 +108,50 @@ func (s *Store) ListNodes() ([]Node, error) {
 	}
 	return out, rows.Err()
 }
+
+// SetSpawnRef records the tmux pane id and the normalized bind tty.
+//
+// Called after Launch and before the bind poll: bind_tty is the key the poll
+// matches on (spec §6.1), and spawn_ref is the pane id the death-detection
+// pane-diff compares against (§9).
+func (s *Store) SetSpawnRef(nodeID, spawnRef, bindTTY string) error {
+	res, err := s.db.Exec(
+		`UPDATE nodes SET spawn_ref = ?, bind_tty = ? WHERE node_id = ?`,
+		nullify(spawnRef), nullify(bindTTY), nodeID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("set spawn ref: node %s not found", nodeID)
+	}
+	return nil
+}
+
+// SetState moves a node to a terminal non-alive state (failed).
+//
+// Deliberately refuses 'alive' and 'dead': alive has exactly one legal entry
+// point (BindPeer, guarded to pending-only) and dead has one (Tombstone, which
+// also stamps died_at). A general-purpose state setter would let a caller
+// bypass either guard — which is how a tombstoned node gets resurrected.
+func (s *Store) SetState(nodeID, state string) error {
+	if state != "failed" && state != "pending" {
+		return fmt.Errorf("SetState refuses %q: use BindPeer for alive, "+
+			"Tombstone for dead — those transitions are guarded", state)
+	}
+	res, err := s.db.Exec(`UPDATE nodes SET state = ? WHERE node_id = ?`, state, nodeID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("set state: node %s not found", nodeID)
+	}
+	return nil
+}
