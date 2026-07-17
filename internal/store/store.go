@@ -1,0 +1,45 @@
+// Package store owns CREW's sidecar database — the hierarchy, roles, and node
+// metadata that claude-peers' broker knows nothing about.
+//
+// This package never writes to ~/.claude-peers.db. That database is owned by
+// the substrate and is read-only to us (spec §9).
+package store
+
+import (
+	"database/sql"
+	_ "embed"
+	"fmt"
+
+	_ "modernc.org/sqlite"
+)
+
+//go:embed schema.sql
+var schemaSQL string
+
+type Store struct{ db *sql.DB }
+
+// Open opens (creating if needed) the sidecar database and applies the schema.
+//
+// The foreign_keys pragma goes in the DSN rather than a one-off Exec on
+// purpose: SQLite ignores FK constraints unless enabled, the setting is
+// per-connection, and database/sql pools connections. A single
+// `Exec("PRAGMA foreign_keys=ON")` would apply to whichever pooled connection
+// happened to serve it and silently not the others — leaving parent_id
+// decorative on an unpredictable subset of queries.
+func Open(path string) (*Store, error) {
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)", path)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("ping: %w", err)
+	}
+	if _, err := db.Exec(schemaSQL); err != nil {
+		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	return &Store{db: db}, nil
+}
+
+func (s *Store) DB() *sql.DB   { return s.db }
+func (s *Store) Close() error  { return s.db.Close() }
