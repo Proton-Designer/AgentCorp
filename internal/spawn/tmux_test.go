@@ -98,12 +98,11 @@ func TestDefaultClaudeArgsKeepsPromptAsOneElement(t *testing.T) {
 	hostile := "'; touch /tmp/pwned; ' `touch /tmp/pwned2` $(touch /tmp/pwned3)\nsecond line"
 	args := defaultClaudeArgs(hostile)
 
-	if len(args) != 5 {
-		t.Fatalf("defaultClaudeArgs returned %d args, want 5: %q", len(args), args)
-	}
 	if args[0] != "claude" {
 		t.Fatalf("args[0] = %q, want \"claude\"", args[0])
 	}
+	// The prompt is the LAST element and passed through verbatim — this is the
+	// injection-safety invariant, independent of how many fixed flags precede it.
 	last := args[len(args)-1]
 	if last != hostile {
 		t.Fatalf("prompt content was altered: got %q, want %q", last, hostile)
@@ -113,6 +112,17 @@ func TestDefaultClaudeArgsKeepsPromptAsOneElement(t *testing.T) {
 	for _, a := range args[:len(args)-1] {
 		if strings.Contains(a, hostile) {
 			t.Fatalf("hostile content leaked into a non-prompt argv element: %q", a)
+		}
+	}
+	// The peer-messaging tools must be allowlisted, or spawned agents can
+	// receive but never reply or set a summary.
+	joined := strings.Join(args, " ")
+	for _, tool := range []string{
+		"mcp__claude-peers__send_message",
+		"mcp__claude-peers__set_summary",
+	} {
+		if !strings.Contains(joined, tool) {
+			t.Fatalf("spawned agents are not allowed %s — they will be mute", tool)
 		}
 	}
 }

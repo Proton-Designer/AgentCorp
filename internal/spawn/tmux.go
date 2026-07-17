@@ -54,9 +54,18 @@ func defaultClaudeArgs(promptContent string) []string {
 	// Mirrors spec §6.1 step 4. The prompt content is one argv element —
 	// never a "$(cat file)" shell substitution, which is what that section
 	// forbids: naive string interpolation into anything shell-parsed.
+	//
+	// The spawned session runs in "don't ask" mode, but that does NOT cover MCP
+	// tool calls — so without an explicit allowlist an agent can RECEIVE channel
+	// messages yet is denied when it tries to reply or set its summary. That
+	// makes agents mute and leaves the HUD showing empty summaries / "quiet"
+	// forever. Pre-approving exactly the four claude-peers tools (and nothing
+	// else) makes an agent a full participant: it can reply, publish a summary,
+	// check its inbox, and see its peers.
 	return []string{
 		"claude",
 		"--dangerously-load-development-channels", "server:claude-peers",
+		"--allowedTools", "mcp__claude-peers__send_message,mcp__claude-peers__set_summary,mcp__claude-peers__check_messages,mcp__claude-peers__list_peers",
 		"--append-system-prompt", promptContent,
 	}
 }
