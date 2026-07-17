@@ -101,7 +101,13 @@ func run() error {
 		ListPeers:   scopedPeers,
 		IDFunc:      func() string { return "n-" + time.Now().UTC().Format("20060102T150405.000000") },
 		ConsentPath: consentPath,
-		BindTimeout: 30 * time.Second,
+		// A freshly spawned claude cold-starts every configured MCP server
+		// (npx/bun subprocesses, network handshakes) before it registers with
+		// the broker. On a machine with many MCP servers that can take well over
+		// 30s, so the bind wait is generous — a hire that times out a few seconds
+		// early is worse than one that waits a little longer. Overridable so a
+		// slower or faster setup can tune it without a rebuild.
+		BindTimeout: bindTimeout(90 * time.Second),
 		BindPoll:    250 * time.Millisecond,
 	}
 
@@ -110,6 +116,19 @@ func run() error {
 		WithHire(flow, cwd)
 	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
+}
+
+// bindTimeout returns how long a hire waits for a spawned session to register,
+// defaulting to def but overridable via AGENTCORP_BIND_TIMEOUT (a Go duration
+// like "120s" or "2m"). An unset or unparseable value falls back to def rather
+// than failing to start.
+func bindTimeout(def time.Duration) time.Duration {
+	if v := os.Getenv("AGENTCORP_BIND_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return def
 }
 
 // resolveCompany finds the company that owns cwd, or offers to create one.
