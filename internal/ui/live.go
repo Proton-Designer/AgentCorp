@@ -10,6 +10,7 @@ import (
 	"github.com/aymanmohammed/crew/internal/broker"
 	"github.com/aymanmohammed/crew/internal/store"
 	"github.com/aymanmohammed/crew/internal/sync"
+	"github.com/aymanmohammed/crew/internal/vitals"
 )
 
 // TickInterval matches claude-peers' own broker poll cadence. Polling faster
@@ -27,6 +28,16 @@ func BrokerDBPath() string {
 
 // liveState holds what the tick loop needs between ticks. It lives on the
 // Model rather than in a package global so tests can drive it deterministically.
+// ActivityWindow is how recently a node must have spoken to read as active.
+//
+// A parameter, not a magic number baked into the pure layer: "recently" is a
+// product judgment, and the pure functions in vitals/ deliberately take it as
+// an argument so it can be tuned without touching them.
+const ActivityWindow = 60 * time.Second
+
+// ThroughputWindow is the span the sparkline covers, bucketed by minute.
+const ThroughputWindow = 10 * time.Minute
+
 type liveState struct {
 	st        *store.Store
 	lastPanes map[string]sync.Pane
@@ -34,6 +45,16 @@ type liveState struct {
 	lastErr   error
 	lastSync  time.Time
 	stale     bool // true when the most recent poll failed
+
+	// Last known-good substrate readings. Kept across a failed poll so the
+	// HUD can show the last truth rather than zeros — zeros would read as
+	// "the company is empty", which is a different and false claim.
+	peers   []broker.Peer
+	msgs    []broker.Message
+	summary vitals.Summary
+	spark   string
+	ticker  string
+	started time.Time
 }
 
 // tickCmd runs one poll cycle off the UI goroutine and delivers the result
@@ -80,7 +101,8 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	}
 	m.live.lastErr = nil
 	m.live.stale = false
-	m.live.lastSync = time.Now()
+	now := time.Now()
+	m.live.lastSync = now
 
 	nodes, err := m.live.st.ListNodes()
 	if err != nil {
@@ -89,6 +111,48 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 		return
 	}
 	m.rebuild(nodes)
+
+	// Re-read peers and messages for the HUD. These are local read-only SQLite
+	// queries against a file the tick just proved reachable.
+	//
+	// A failure here degrades the HUD but must NOT mark the whole view stale:
+	// the tree is still current, and claiming otherwise would be its own lie.
+	// We keep the last known-good readings rather than zeroing them — zeros
+	// would render as "the company is empty", which is a different false claim
+	// than "we don't know".
+	if peers, err := broker.ListPeers(m.live.brokerDB); err == nil {
+		m.live.peers = peers
+	}
+	if msgs, err := broker.ListMessages(m.live.brokerDB); err == nil {
+		m.live.msgs = msgs
+	}
+
+	m.live.summary = vitals.Vitals(nodes, m.live.peers, m.live.msgs, now, ActivityWindow)
+	if m.live.started.IsZero() {
+		m.live.started = now
+	}
+	m.live.summary.Uptime = now.Sub(m.live.started)
+	m.live.spark = sparkline(vitals.Throughput(m.live.msgs, ThroughputWindow, now))
+	m.live.ticker = vitals.Ticker(m.live.msgs)
+}
+
+// statusOf returns a node's live status glyph input. Nodes are matched to
+// store rows by name, which is what the layout tree carries.
+func (m Model) statusOf(name string) vitals.Status {
+	if m.live == nil {
+		return ""
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return ""
+	}
+	for _, n := range nodes {
+		if n.Name == name {
+			return vitals.NodeStatus(n, m.live.peers, m.live.msgs,
+				time.Now(), ActivityWindow)
+		}
+	}
+	return ""
 }
 
 // rebuild swaps in a fresh tree while preserving what the operator was doing:

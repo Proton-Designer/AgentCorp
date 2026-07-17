@@ -180,9 +180,19 @@ func (m Model) View() string {
 
 	var b strings.Builder
 	b.WriteString(m.header())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+	if m.live != nil {
+		b.WriteString("  " + hudLine(m.live.summary, m.live.spark, m.live.stale) + "\n")
+	}
+	b.WriteString("\n")
 	b.WriteString(Render(m.root, m.width))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+
+	// The activity ticker: the most recent message in the org. Always moving,
+	// so the screen has a pulse even when the tree is calm.
+	if m.live != nil && m.live.ticker != "" {
+		b.WriteString("\n  ◷ " + truncate(m.live.ticker, m.width-6) + "\n")
+	}
 
 	// A stale view must say so. The tree on screen is the last thing we knew
 	// to be true, not what is true now — and an operator acting on a silently
@@ -209,22 +219,29 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// header renders the vitals strip. Live status reads "live" only when the
-// most recent poll actually succeeded — never optimistically.
+// header renders the title bar. The vitals live in hudLine below it.
 func (m Model) header() string {
-	status := ""
-	if m.live != nil {
-		if m.live.stale {
-			status = "⚠ stale "
-		} else {
-			status = "● live "
-		}
-	}
-	title := fmt.Sprintf("╭─ CREW ─ %s%d agents ", status, len(m.flat))
+	title := "╭─ CREW "
 	if pad := m.width - len([]rune(title)) - 1; pad > 0 {
 		title += strings.Repeat("─", pad) + "╮"
 	}
 	return title
+}
+
+// truncate cuts to n cells, rune-safely.
+//
+// NOTE (UI-7): this counts runes, not display cells. Correct for the ASCII
+// message text it currently handles; wrong the moment a double-width glyph
+// appears. Tracked with the rest of the displaywidth work.
+func truncate(s string, n int) string {
+	if n <= 1 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
 }
 
 func emptyState(width int) string {
