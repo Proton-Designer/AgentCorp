@@ -223,19 +223,24 @@ func (m Model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.root == nil {
-		return emptyState(m.width)
-	}
 
 	var b strings.Builder
-	b.WriteString(m.header())
-	b.WriteString("\n")
-	if m.live != nil {
-		b.WriteString("  " + hudLine(m.live.summary, m.live.spark, m.live.stale) + "\n")
+
+	if m.root == nil {
+		// No agents yet — show the cold-start splash. But a modal (hire) or a
+		// flash (the outcome of a hire that just failed/succeeded) must STILL
+		// render over it, or pressing h looks like it does nothing.
+		b.WriteString(emptyState(m.width))
+	} else {
+		b.WriteString(m.header())
+		b.WriteString("\n")
+		if m.live != nil {
+			b.WriteString("  " + hudLine(m.live.summary, m.live.spark, m.live.stale) + "\n")
+		}
+		b.WriteString("\n")
+		b.WriteString(Render(m.root, m.width))
+		b.WriteString("\n")
 	}
-	b.WriteString("\n")
-	b.WriteString(Render(m.root, m.width))
-	b.WriteString("\n")
 
 	// The activity ticker: the most recent message in the org. Always moving,
 	// so the screen has a pulse even when the tree is calm.

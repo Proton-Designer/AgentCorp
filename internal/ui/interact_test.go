@@ -157,3 +157,33 @@ func TestFooterAdvertisesActions(t *testing.T) {
 		}
 	}
 }
+
+// REGRESSION: pressing h on an EMPTY org must show the hire modal. The view
+// short-circuited on a nil root and returned only the splash, so the modal
+// opened invisibly and h looked dead. Every other interaction test seeded a
+// node, so root was never nil and this went uncaught.
+func TestHireModalVisibleOnEmptyOrg(t *testing.T) {
+	s, err := store.Open(t.TempDir() + "/empty.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	m := NewLive(s, nil) // no nodes -> nil root -> empty state
+	if m.root != nil {
+		t.Fatal("precondition: expected empty org")
+	}
+
+	m = send(m, "h")
+	if m.mode != modeHire {
+		t.Fatalf("h did not open hire mode on an empty org (mode=%v)", m.mode)
+	}
+	m = send(m, "d", "e", "v")
+
+	v := m.View()
+	if !strings.Contains(v, "hire") || !strings.Contains(v, "dev") {
+		t.Fatalf("hire modal not rendered over the empty state — h looks dead:\n%s", v)
+	}
+	if !strings.Contains(v, "esc cancel") {
+		t.Fatalf("modal controls not shown on empty org:\n%s", v)
+	}
+}
