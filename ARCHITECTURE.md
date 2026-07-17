@@ -25,10 +25,11 @@ chart).
 ## Package layout
 
 ```
-cmd/agentcorp            entry point + first-run consent
+cmd/agentcorp            entry point + first-run consent + company resolution
 internal/
   store             sidecar SQLite — hierarchy, roles, node state machine (ours)
   broker            READ-ONLY reader for claude-peers' DB + pure reconcile
+  company           directory → company resolution, membership, config — pure core
   layout            Reingold-Tilford tree positioning — pure, no I/O
   sync              the tick loop: poll → diff → reconcile → apply
   vitals            derived state (active/quiet, throughput) — pure
@@ -48,22 +49,51 @@ algorithm (a centered org-chart has no off-the-shelf terminal implementation),
 and keeping it pure is what let it be verified against tens of thousands of
 randomized trees.
 
+## Company scoping
+
+`claude-peers` is one flat, machine-wide mesh. AgentCorp partitions it into
+**companies**, each bound to a directory subtree by a `.agentcorp/company.toml`
+`{id, name}` file. Resolution walks up from the launch directory to the nearest
+such file — git-style, nearest wins — so a nested subtree can be its own company
+without leaking into a parent's.
+
+Scoping is applied at **one chokepoint**: a company-filtered peer source
+(`ui.ScopedPeers`) wraps the raw broker read and drops any peer whose working
+directory doesn't resolve to this company. Every consumer — the reconcile tick,
+the HUD, the hire flow — draws from that one source, so the filter can't be
+applied inconsistently. An unscoped launch (`root == ""`) returns the raw source
+unchanged, preserving the original machine-wide behavior.
+
+The sidecar store is **per company**: a scoped launch keeps its hierarchy in
+`<root>/.agentcorp/agentcorp.db`, an unscoped one uses the global
+`~/.config/agentcorp/agentcorp.db`. This is not just tidiness — it's a
+correctness requirement. Reconcile tombstones any bound node whose peer is
+absent from the live list; with a shared store and a scoped peer view,
+launching in company B would see company A's peers as "gone" and tombstone A's
+nodes. A per-company store makes each company's org independent, so that can't
+happen. The `company` package is pure at its core (config parse/format and
+walk-up logic are I/O-testable in isolation), matching the discipline of
+`layout` and `broker.Reconcile`.
+
 ## Data flow
 
 ```
                  ┌─────────────────────────────────────────┐
    ~/.claude-    │  sync.Tick (every 1s)                   │
-   peers.db  ───▶│    broker.ListPeers (read-only)         │
+   peers.db  ───▶│    ScopedPeers(broker.ListPeers)        │  ← company filter
    (substrate)   │    sync.ListPanes  (tmux)               │
                  │    broker.Reconcile ─► store writes     │
                  └───────────────┬─────────────────────────┘
                                  │ tea.Msg
                                  ▼
-   ~/.config/    ┌─────────────────────────────────────────┐
-   agentcorp/agentcorp.db ─│  ui.Model: BuildTree → layout → paint   │
-   (ours)        │  vitals (HUD) · status glyphs           │
-                 └─────────────────────────────────────────┘
+   <root>/       ┌─────────────────────────────────────────┐
+   .agentcorp/   │  ui.Model: BuildTree → layout → paint   │
+   agentcorp.db ─│  vitals (HUD) · status glyphs           │
+   (per company) └─────────────────────────────────────────┘
 ```
+
+(An unscoped launch reads all peers and uses the global
+`~/.config/agentcorp/agentcorp.db` instead.)
 
 ## Key invariants
 

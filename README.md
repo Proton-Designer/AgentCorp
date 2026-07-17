@@ -43,6 +43,27 @@ AgentCorp is the company layer on top. It doesn't replace `claude-peers` — it 
 - **Steer it.** Hire an agent under any node, message any agent directly, restructure the tree, retire agents.
 - **Survive restarts.** The org is durable. Close AgentCorp, reopen it, everything is still there.
 - **Adopt what's already running.** Sessions AgentCorp didn't spawn show up as unmanaged; adopt them into the chart.
+- **Scope by company.** Link a directory to a company and AgentCorp shows only the sessions inside it — so one laptop running many unrelated Claude sessions stops crowding a single chart.
+
+---
+
+## Companies
+
+By default `claude-peers` is a flat, machine-wide mesh: every Claude session on the laptop can see every other. That's noise the moment you're doing more than one thing. AgentCorp scopes the view to a **company**, which is just a directory subtree.
+
+- On launch, AgentCorp walks up from the working directory to the nearest `.agentcorp/company.toml` — exactly how git finds the repo that owns a path. **Nearest wins**, so a subfolder can carry its own company without leaking into its parent's.
+- Find one, and AgentCorp shows only sessions whose working directory belongs to that company, titles the console with its name, and keeps that company's org chart in the folder (`.agentcorp/agentcorp.db`).
+- Find none, and AgentCorp offers to create one for this directory, or to run **unscoped** — every session on the machine, the original behavior — if you decline.
+
+The definition is a two-line file meant to be shared:
+
+```toml
+# .agentcorp/company.toml
+id   = "co-20260717T090000.000000"   # stable; how sessions recognize the same company
+name = "Acme Corp"                    # the display name; edit freely
+```
+
+Commit `company.toml` so your whole team resolves into the same company; a generated `.agentcorp/.gitignore` keeps the local runtime store out of the repo. Any session started anywhere inside that directory tree — by AgentCorp or not — is automatically in the company.
 
 ---
 
@@ -131,6 +152,7 @@ cmd/agentcorp          entry point
 internal/
   store           sidecar DB — hierarchy, roles, node metadata (ours)
   broker          READ-ONLY reader for claude-peers' DB (never written)
+  company         directory → company resolution + scoping — pure core
   layout          Reingold-Tilford tree positioning — pure, no I/O
   sync            the tick loop: poll → diff → reconcile → apply
   vitals          derived state — pure
@@ -147,7 +169,7 @@ internal/
 
 ## Status
 
-**Phases 1–3 complete.** The chart renders, polls the live substrate every second, reports real vitals, and the full hire → bind → message → fire → disband lifecycle works. ~180 tests, single 11MB binary.
+**Phases 1–3 complete, plus directory-scoped companies.** The chart renders, polls the live substrate every second, reports real vitals, and the full hire → bind → message → fire → disband lifecycle works — scoped to the company that owns the launch directory. ~200 tests, single 11MB binary.
 
 ## Contributing
 

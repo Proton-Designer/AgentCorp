@@ -249,7 +249,7 @@ func (m Model) View() string {
 		// No agents yet — show the cold-start splash. But a modal (hire) or a
 		// flash (the outcome of a hire that just failed/succeeded) must STILL
 		// render over it, or pressing h looks like it does nothing.
-		b.WriteString(emptyState(m.width))
+		b.WriteString(emptyState(m.width, m.companyName()))
 	} else {
 		b.WriteString(m.header())
 		b.WriteString("\n")
@@ -312,9 +312,23 @@ func (m Model) activeInput() input {
 	return input{}
 }
 
-// header renders the title bar. The vitals live in hudLine below it.
+// companyName is the resolved company's display name, or "" when unscoped
+// (or on a static, non-live model).
+func (m Model) companyName() string {
+	if m.live == nil {
+		return ""
+	}
+	return m.live.company.Name
+}
+
+// header renders the title bar. The vitals live in hudLine below it. When the
+// launch directory is scoped to a company, its name rides in the title so the
+// operator can always see which company this console is showing.
 func (m Model) header() string {
 	title := "╭─ AgentCorp "
+	if name := m.companyName(); name != "" {
+		title = "╭─ AgentCorp · " + name + " "
+	}
 	if pad := m.width - len([]rune(title)) - 1; pad > 0 {
 		title += strings.Repeat("─", pad) + "╮"
 	}
@@ -337,7 +351,7 @@ func truncate(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
-func emptyState(width int) string {
+func emptyState(width int, companyName string) string {
 	lines := []string{
 		"",
 		"╭───────────────────────╮",
@@ -348,6 +362,12 @@ func emptyState(width int) string {
 		"",
 		"press h to hire your first agent",
 		"",
+	}
+	// When scoped, name the company on the splash so the operator knows the
+	// view is already filtered — an empty chart then reads as "this company has
+	// no agents yet," not "AgentCorp sees nothing."
+	if companyName != "" {
+		lines = append(lines, "company: "+companyName, "")
 	}
 	var b strings.Builder
 	for _, l := range lines {
