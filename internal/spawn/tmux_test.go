@@ -220,19 +220,24 @@ func TestLaunchAdversarialNameNeverExecutes(t *testing.T) {
 	}
 }
 
-// A literal newline in the name: tmux is expected to reject this outright
-// ("invalid window name"), verified manually against the real binary before
-// writing this test. Confirms Launch surfaces that as a clean error rather
-// than panicking or silently doing something else, and that nothing executes.
+// A literal newline in the window name. The security property is that it never
+// executes anything — and that must hold regardless of how a given tmux version
+// treats the name.
 //
-// Exempt from the markerAppeared bounded-poll audit applied elsewhere in
-// this file: when new-window itself fails, Launch returns immediately and
-// respawn-pane is never called — there is no code path left running after
-// this test's os.Stat that could still create the marker. That's a
-// structural guarantee (respawn-pane is textually unreachable on this
-// error path), not a timing assumption, which is the distinction that
-// makes an immediate check safe here and nowhere else in this file.
-func TestLaunchAdversarialNewlineInNameIsRejectedCleanly(t *testing.T) {
+// tmux versions genuinely differ here: 3.7b (macOS) rejects a newline name
+// outright ("invalid window name"), so Launch returns an error; older builds
+// (e.g. the one on the Linux CI runner) accept it as a literal name, so Launch
+// succeeds. Asserting one specific behavior makes the test pass on one platform
+// and fail on the other — which is exactly what happened. So we assert the
+// invariant that holds on both: no marker file, meaning no command ran.
+//
+// The two branches also justify their own marker checks. If Launch errored,
+// new-window failed and respawn-pane was never reached — nothing is still
+// running, so an immediate os.Stat is sound (a structural guarantee, not a
+// timing assumption). If Launch succeeded, respawn-pane did run a process, so
+// we use the bounded poll to give any execution a chance to appear before we
+// conclude it didn't.
+func TestLaunchAdversarialNewlineInNameNeverExecutes(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "pwned-newline")
 	os.Remove(marker)
 	a := newTestAdapter(t)
@@ -242,11 +247,20 @@ func TestLaunchAdversarialNewlineInNameIsRejectedCleanly(t *testing.T) {
 		Workdir:    t.TempDir(),
 		PromptFile: writePromptFile(t, "x"),
 	})
-	if err == nil {
-		t.Fatal("want an error for a newline-containing window name, got nil")
+
+	if err != nil {
+		// tmux rejected the name (e.g. macOS 3.7b). Nothing ran.
+		if _, statErr := os.Stat(marker); statErr == nil {
+			t.Fatal("marker was created even though Launch returned an error")
+		}
+		return
 	}
-	if _, statErr := os.Stat(marker); statErr == nil {
-		t.Fatal("marker file was created from a newline-containing name")
+
+	// tmux accepted the literal name (e.g. the Linux CI tmux). A process was
+	// respawned; confirm it was NOT the injected marker command.
+	if markerAppeared(marker, time.Second) {
+		t.Fatal("marker file was created from a newline-containing name — " +
+			"the name reached a shell instead of staying a literal argv element")
 	}
 }
 
