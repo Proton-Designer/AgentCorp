@@ -28,27 +28,52 @@ const (
 	styNode                       // a node whose status is unknown/default
 )
 
-// ansiFor maps a cellStyle to a 256-colour SGR foreground escape, or "" for no
-// styling. 256-colour (not 24-bit truecolor) because macOS Terminal.app — a
-// likely host — supports 256 but not truecolor, and every modern terminal and
-// tmux supports 256 without extra config.
+// palette maps each cellStyle to a 256-colour SGR foreground code (as a bare
+// number; sgr() wraps it). Index 0 (styNone) is always empty. 256-colour, not
+// 24-bit truecolor, because macOS Terminal.app — a likely host — supports 256
+// but not truecolor, while every modern terminal and tmux supports 256 without
+// extra config.
+type palette [7]string
+
+// theme is a named palette. Cycling themes ('t') is pure cosmetics — a big lever
+// on how "the whole thing feels" for near-zero code, exactly the kind of thing
+// this project's whole frontend emphasis is about.
+type theme struct {
+	name string
+	p    palette
+}
+
+// themes are ordered; 't' advances through them. Index by cellStyle:
+// [none, connector, active, quiet, pending, dead, node].
+var themes = []theme{
+	{"mint", palette{"", "240", "48", "79", "214", "241", "122"}},
+	{"matrix", palette{"", "22", "46", "34", "226", "238", "40"}},
+	{"cyber", palette{"", "54", "51", "45", "201", "240", "141"}},
+	{"amber", palette{"", "94", "214", "178", "220", "240", "208"}},
+	{"ice", palette{"", "24", "51", "39", "123", "240", "45"}},
+}
+
+// currentTheme indexes themes. A package var (not per-model) because a single
+// TUI process has one active palette; the theme test saves/restores it.
+var currentTheme int
+
+// cycleTheme advances to the next palette and returns its name.
+func cycleTheme() string {
+	currentTheme = (currentTheme + 1) % len(themes)
+	return themes[currentTheme].name
+}
+
+// ansiFor maps a cellStyle to the current theme's SGR foreground escape, or ""
+// for no styling.
 func ansiFor(s cellStyle) string {
-	switch s {
-	case styConnector:
-		return "\x1b[38;5;240m" // dim grey — present but recedes
-	case styActive:
-		return "\x1b[38;5;48m" // bright green — talking now
-	case styQuiet:
-		return "\x1b[38;5;79m" // calm aquamarine — alive, resting
-	case styPending:
-		return "\x1b[38;5;214m" // amber — forming
-	case styDead:
-		return "\x1b[38;5;241m" // faded grey — gone
-	case styNode:
-		return "\x1b[38;5;122m" // mint — the house colour
-	default:
+	if int(s) < 0 || int(s) >= len(themes[currentTheme].p) {
 		return ""
 	}
+	code := themes[currentTheme].p[s]
+	if code == "" {
+		return ""
+	}
+	return "\x1b[38;5;" + code + "m"
 }
 
 const ansiReset = "\x1b[0m"

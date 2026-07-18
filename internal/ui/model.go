@@ -243,6 +243,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openInspect()
 		case "b":
 			m.openBroadcast()
+		case "t":
+			if colorEnabled {
+				m.flash = "theme: " + cycleTheme()
+			}
 		}
 	}
 	return m, nil
@@ -398,7 +402,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · q quit\n")
+		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · q quit\n")
 	}
 	return b.String()
 }
