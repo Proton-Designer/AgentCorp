@@ -67,6 +67,20 @@ func Tick(
 	recon := broker.Reconcile(nodes, peers)
 	actions := Decide(diff, recon, nodes)
 
+	// Outer bound on pending hires: a still-unbound pending node older than the
+	// grace never registered — fail it (and reap its orphaned pane in apply)
+	// rather than let it sit pending forever. A node about to be bound THIS tick
+	// registered (just slowly) and is excluded — binding wins.
+	binding := make(map[string]bool, len(actions.Bind))
+	for _, b := range actions.Bind {
+		binding[b.NodeID] = true
+	}
+	for _, id := range StalePending(nodes, time.Now().UTC(), PendingGrace) {
+		if !binding[id] {
+			actions.Fail = append(actions.Fail, id)
+		}
+	}
+
 	if err := apply(st, actions); err != nil {
 		return TickMsg{PaneDiff: diff, Reconciliation: recon, Err: fmt.Errorf("tick: apply: %w", err)}, curPanes
 	}
@@ -75,6 +89,12 @@ func Tick(
 }
 
 // apply is the I/O edge that turns Actions into store writes.
+//
+// Order matters: Tombstone runs fully before Bind so that if a node is proposed
+// for both in one tick (a pane died AND a peer appeared on its reused tty),
+// BindPeer's WHERE state='pending' guard rejects the now-dead node with a clean
+// RowsAffected==0 error rather than resurrecting it. Fail runs last, only for
+// nodes Decide didn't already tombstone or bind.
 func apply(st *store.Store, a Actions) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, nodeID := range a.Tombstone {
@@ -87,5 +107,30 @@ func apply(st *store.Store, a Actions) error {
 			return fmt.Errorf("bind %s<-%s: %w", b.NodeID, b.PeerID, err)
 		}
 	}
+	for _, nodeID := range a.Fail {
+		// Reap the orphaned pane first (best-effort) so a permanently-broken
+		// hire doesn't leave a dangling tmux window with no signal to clean it
+		// up, then mark the node failed so the operator sees where it went.
+		reapPane(st, nodeID)
+		if err := st.SetState(nodeID, "failed"); err != nil {
+			return fmt.Errorf("fail %s: %w", nodeID, err)
+		}
+	}
 	return nil
+}
+
+// reapPane kills the tmux pane a node was spawned into, if any. Best-effort: a
+// pane that's already gone is success, and a lookup failure must not block the
+// state change that tells the operator the hire is over.
+func reapPane(st *store.Store, nodeID string) {
+	nodes, err := st.ListNodes()
+	if err != nil {
+		return
+	}
+	for _, n := range nodes {
+		if n.NodeID == nodeID && n.SpawnRef != "" {
+			_ = broker.KillPane(n.SpawnRef)
+			return
+		}
+	}
 }

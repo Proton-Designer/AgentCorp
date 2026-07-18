@@ -10,6 +10,7 @@ import (
 type Actions struct {
 	Tombstone []string         // node IDs whose peer or tmux pane is gone
 	Bind      []broker.Binding // pending nodes to bind to a newly-seen peer
+	Fail      []string         // pending nodes that outlived the bind grace, never registering
 }
 
 // Decide is the pure reconcile-decision step, combining two independent
