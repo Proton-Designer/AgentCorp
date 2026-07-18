@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -37,6 +38,15 @@ func Open(path string) (*Store, error) {
 	}
 	if _, err := db.Exec(schemaSQL); err != nil {
 		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	// Migrate existing databases: CREATE TABLE IF NOT EXISTS is a no-op on an
+	// existing table, so a column added to the schema after a DB was created
+	// won't appear without this. ADD COLUMN is idempotent-by-intent here — a
+	// "duplicate column name" error just means the migration already ran, which
+	// is success, not failure.
+	if _, err := db.Exec(`ALTER TABLE nodes ADD COLUMN session_id TEXT`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return nil, fmt.Errorf("migrate session_id: %w", err)
 	}
 	s := &Store{db: db}
 	// Seed default role archetypes into a fresh store (no-op if roles exist),

@@ -36,12 +36,12 @@ type TmuxWindowAdapter struct {
 	// default server — the one the AgentCorp console itself runs in (spec §8).
 	Socket string
 
-	// claudeArgs builds the argv for the process launched into the pane,
-	// given the prompt file's content. Defaults to the real claude
-	// invocation. Tests override it with a harmless command so Launch can
-	// be exercised end-to-end — including every real tmux call — without
-	// spawning a real claude process or touching the live broker.
-	claudeArgs func(promptContent string) []string
+	// claudeArgs builds the argv for the process launched into the pane, given
+	// the spec (for session id / resume) and the prompt file's content. Defaults
+	// to the real claude invocation. Tests override it with a harmless command so
+	// Launch can be exercised end-to-end — including every real tmux call —
+	// without spawning a real claude process or touching the live broker.
+	claudeArgs func(spec Spec, promptContent string) []string
 }
 
 // NewTmuxWindowAdapter constructs an adapter targeting the given tmux
@@ -50,7 +50,7 @@ func NewTmuxWindowAdapter(socket string) *TmuxWindowAdapter {
 	return &TmuxWindowAdapter{Socket: socket, claudeArgs: defaultClaudeArgs}
 }
 
-func defaultClaudeArgs(promptContent string) []string {
+func defaultClaudeArgs(spec Spec, promptContent string) []string {
 	// Mirrors spec §6.1 step 4. The prompt content is one argv element —
 	// never a "$(cat file)" shell substitution, which is what that section
 	// forbids: naive string interpolation into anything shell-parsed.
@@ -60,14 +60,26 @@ func defaultClaudeArgs(promptContent string) []string {
 	// messages yet is denied when it tries to reply or set its summary. That
 	// makes agents mute and leaves the HUD showing empty summaries / "quiet"
 	// forever. Pre-approving exactly the four claude-peers tools (and nothing
-	// else) makes an agent a full participant: it can reply, publish a summary,
-	// check its inbox, and see its peers.
-	return []string{
-		"claude",
+	// else) makes an agent a full participant.
+	args := []string{"claude"}
+	switch {
+	case spec.Resume && spec.SessionID != "":
+		// Revive: restore the exact prior session with its memory.
+		args = append(args, "--resume", spec.SessionID)
+	case spec.SessionID != "":
+		// Fresh hire: start with an AgentCorp-chosen id so it's resumable later.
+		args = append(args, "--session-id", spec.SessionID)
+	}
+	args = append(args,
 		"--dangerously-load-development-channels", "server:claude-peers",
 		"--allowedTools", "mcp__claude-peers__send_message,mcp__claude-peers__set_summary,mcp__claude-peers__check_messages,mcp__claude-peers__list_peers",
-		"--append-system-prompt", promptContent,
+	)
+	// On resume the session already carries its identity + history; only a fresh
+	// hire needs its system prompt appended.
+	if !spec.Resume {
+		args = append(args, "--append-system-prompt", promptContent)
 	}
+	return args
 }
 
 func (a *TmuxWindowAdapter) tmux(ctx context.Context, args ...string) *exec.Cmd {
@@ -104,9 +116,14 @@ func (a *TmuxWindowAdapter) Launch(ctx context.Context, spec Spec) (Handle, erro
 		return Handle{}, fmt.Errorf("spawn: workdir %q is not a directory", spec.Workdir)
 	}
 
-	promptBytes, err := os.ReadFile(spec.PromptFile)
-	if err != nil {
-		return Handle{}, fmt.Errorf("spawn: read prompt file: %w", err)
+	// A resume carries no prompt file — the session already has its identity and
+	// history, and claudeArgs won't append a system prompt on resume.
+	var promptBytes []byte
+	if !spec.Resume {
+		promptBytes, err = os.ReadFile(spec.PromptFile)
+		if err != nil {
+			return Handle{}, fmt.Errorf("spawn: read prompt file: %w", err)
+		}
 	}
 
 	// Capture the pane id now. tty is captured AFTER respawn-pane below — see
@@ -132,7 +149,7 @@ func (a *TmuxWindowAdapter) Launch(ctx context.Context, spec Spec) (Handle, erro
 	// shell reparse) rather than typing a string into the pane with
 	// send-keys, which would hand the text to the pane's live shell to
 	// interpret.
-	args := append([]string{"respawn-pane", "-k", "-t", paneID, "--"}, a.claudeArgs(string(promptBytes))...)
+	args := append([]string{"respawn-pane", "-k", "-t", paneID, "--"}, a.claudeArgs(spec, string(promptBytes))...)
 	if _, err := run(a.tmux(ctx, args...)); err != nil {
 		return Handle{}, fmt.Errorf("spawn: tmux respawn-pane: %w", err)
 	}

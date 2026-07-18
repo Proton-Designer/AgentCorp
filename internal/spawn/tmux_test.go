@@ -44,7 +44,7 @@ func newTestAdapter(t *testing.T) *TmuxWindowAdapter {
 	}
 
 	a := NewTmuxWindowAdapter(socket)
-	a.claudeArgs = func(string) []string { return []string{"/bin/true"} }
+	a.claudeArgs = func(Spec, string) []string { return []string{"/bin/true"} }
 
 	t.Cleanup(func() {
 		exec.Command("tmux", "-L", socket, "kill-server").Run() // best-effort; errors if a server never started
@@ -96,7 +96,7 @@ func markerAppeared(marker string, timeout time.Duration) bool {
 // atomic argv element, without ever running a process to prove it.
 func TestDefaultClaudeArgsKeepsPromptAsOneElement(t *testing.T) {
 	hostile := "'; touch /tmp/pwned; ' `touch /tmp/pwned2` $(touch /tmp/pwned3)\nsecond line"
-	args := defaultClaudeArgs(hostile)
+	args := defaultClaudeArgs(Spec{}, hostile)
 
 	if args[0] != "claude" {
 		t.Fatalf("args[0] = %q, want \"claude\"", args[0])
@@ -289,7 +289,7 @@ func TestLaunchAdversarialPromptContentNeverExecutes(t *testing.T) {
 		t.Fatalf("bootstrap tmux session: %v: %s", err, out)
 	}
 	a := NewTmuxWindowAdapter(socket)
-	a.claudeArgs = func(promptContent string) []string { return []string{"/bin/echo", promptContent} }
+	a.claudeArgs = func(_ Spec, promptContent string) []string { return []string{"/bin/echo", promptContent} }
 	t.Cleanup(func() { exec.Command("tmux", "-L", socket, "kill-server").Run() })
 
 	h, err := a.Launch(context.Background(), Spec{
@@ -343,7 +343,7 @@ func TestLaunchTTYIsPostRespawnTTY(t *testing.T) {
 
 	a := NewTmuxWindowAdapter(socket)
 	// A process that stays alive so the pane persists for the tty query.
-	a.claudeArgs = func(string) []string { return []string{"/bin/sh", "-c", "sleep 5"} }
+	a.claudeArgs = func(Spec, string) []string { return []string{"/bin/sh", "-c", "sleep 5"} }
 
 	h, err := a.Launch(context.Background(), Spec{
 		Name: "tty-test", Workdir: t.TempDir(), PromptFile: writePromptFile(t, "x"),
@@ -365,5 +365,27 @@ func TestLaunchTTYIsPostRespawnTTY(t *testing.T) {
 	}
 	if h.TTY == "" {
 		t.Fatal("Handle.TTY is empty")
+	}
+}
+
+// A fresh hire gets --session-id (so it's resumable later); a revive gets
+// --resume and does NOT re-append the system prompt.
+func TestClaudeArgsSessionIDAndResume(t *testing.T) {
+	fresh := strings.Join(defaultClaudeArgs(Spec{SessionID: "sid-1"}, "prompt"), " ")
+	if !strings.Contains(fresh, "--session-id sid-1") {
+		t.Fatalf("fresh hire missing --session-id: %q", fresh)
+	}
+	if strings.Contains(fresh, "--resume") {
+		t.Fatalf("fresh hire must not resume: %q", fresh)
+	}
+	rev := strings.Join(defaultClaudeArgs(Spec{SessionID: "sid-1", Resume: true}, "prompt"), " ")
+	if !strings.Contains(rev, "--resume sid-1") {
+		t.Fatalf("revive missing --resume: %q", rev)
+	}
+	if strings.Contains(rev, "--session-id") {
+		t.Fatalf("revive must not pass --session-id: %q", rev)
+	}
+	if strings.Contains(rev, "--append-system-prompt") {
+		t.Fatalf("revive must not re-append the system prompt: %q", rev)
 	}
 }

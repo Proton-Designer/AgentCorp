@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   spawn_ref   TEXT,
   state       TEXT NOT NULL CHECK (state IN ('pending','alive','dead','failed')),
   created_at  TEXT NOT NULL,
-  died_at     TEXT
+  died_at     TEXT,
+  session_id  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS roles (

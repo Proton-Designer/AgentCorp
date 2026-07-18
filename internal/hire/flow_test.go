@@ -317,3 +317,45 @@ func TestRunSurfacesMissingRoleTemplate(t *testing.T) {
 		t.Fatalf("RoleMissing = %q, want ghost-role — the fallback must be surfaced", res.RoleMissing)
 	}
 }
+
+// A fresh hire assigns a session id, stores it on the node, and passes it to
+// the spawn (via --session-id) so the agent is later revivable.
+func TestRunAssignsResumableSessionID(t *testing.T) {
+	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys1"}}
+	f, st := testFlow(t, a, func() ([]broker.Peer, error) {
+		return []broker.Peer{{ID: "p1", TTY: "ttys1"}}, nil
+	})
+	res, err := f.Run(context.Background(), req(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByID(t, st, res.NodeID)
+	if n.SessionID == "" {
+		t.Fatal("hire did not assign a session id — the agent won't be revivable")
+	}
+	if len(a.specs) != 1 || a.specs[0].SessionID != n.SessionID {
+		t.Fatalf("spawn spec session id %q != node session id %q", a.specs[0].SessionID, n.SessionID)
+	}
+	if a.specs[0].Resume {
+		t.Fatal("a fresh hire must not be a resume")
+	}
+}
+
+// Revive refuses a node that isn't dead, one with no recorded session, and one
+// whose transcript is gone (ErrSessionGone).
+func TestReviveGuards(t *testing.T) {
+	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys1"}}
+	f, _ := testFlow(t, a, func() ([]broker.Peer, error) { return nil, nil })
+
+	if _, err := f.Revive(context.Background(), store.Node{NodeID: "1", Name: "x", State: "alive", SessionID: "s"}); err == nil || !strings.Contains(err.Error(), "not dead") {
+		t.Fatalf("non-dead revive should be rejected, got %v", err)
+	}
+	if _, err := f.Revive(context.Background(), store.Node{NodeID: "1", Name: "x", State: "dead", SessionID: ""}); err == nil || !strings.Contains(err.Error(), "no recorded session") {
+		t.Fatalf("no-session revive should be rejected, got %v", err)
+	}
+	// A dead node with a session id that has no transcript on disk → ErrSessionGone.
+	_, err := f.Revive(context.Background(), store.Node{NodeID: "1", Name: "x", State: "dead", SessionID: "no-such-transcript-uuid-zzz", Workdir: "/tmp"})
+	if !errors.Is(err, ErrSessionGone) {
+		t.Fatalf("missing transcript should yield ErrSessionGone, got %v", err)
+	}
+}

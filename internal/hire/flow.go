@@ -8,7 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Proton-Designer/AgentCorp/internal/broker"
+	"github.com/Proton-Designer/AgentCorp/internal/resume"
 	"github.com/Proton-Designer/AgentCorp/internal/spawn"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
@@ -132,6 +135,11 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 		res.RoleMissing = req.RoleTemplate
 	}
 
+	// An AgentCorp-chosen session id, passed to `claude --session-id` and stored
+	// on the node. This is what makes the agent revivable: a dead node whose
+	// transcript still exists can be brought back with `claude --resume <id>`.
+	sessionID := uuid.NewString()
+
 	// 1. Prompt to a file. Never onto a command line — that's the injection
 	//    surface spawn/ exists to avoid, and briefs are operator free text.
 	promptFile, cleanup, err := writePrompt(req)
@@ -150,6 +158,7 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 		SpawnMode: "tmux-window",
 		State:     "pending",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		SessionID: sessionID,
 	}
 	if err := f.Store.InsertNode(node); err != nil {
 		return res, fmt.Errorf("insert pending node: %w", err)
@@ -163,6 +172,7 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 		Workdir:    req.Workdir,
 		PromptFile: promptFile,
 		Mode:       "tmux-window",
+		SessionID:  sessionID,
 	})
 	if err != nil {
 		f.fail(nodeID)
@@ -207,6 +217,75 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 		return res, fmt.Errorf("bind: %w", err)
 	}
 
+	res.PeerID = peerID
+	return res, nil
+}
+
+// ErrSessionGone means a dead agent can't be revived because its Claude Code
+// transcript no longer exists on disk — there is no memory to resume. The
+// caller surfaces this and offers to delete the node or adopt a replacement.
+var ErrSessionGone = errors.New("session transcript not found — the agent's memory is gone")
+
+// Revive brings a dead agent back with its memory: it respawns the agent's
+// exact Claude session via `claude --resume <session-id>`, resets the node from
+// dead to pending, and rebinds it exactly like a fresh hire. Refuses (with
+// ErrSessionGone) if the transcript is missing, and refuses to revive a node
+// that isn't dead or has no recorded session (adopted / pre-session-id).
+//
+// Spawn happens BEFORE the dead->pending reset, so a launch failure leaves the
+// node dead (unchanged) rather than stranding it pending.
+func (f *Flow) Revive(ctx context.Context, node store.Node) (Result, error) {
+	if err := RequireConsent(f.ConsentPath); err != nil {
+		return Result{}, err
+	}
+	res := Result{NodeID: node.NodeID}
+	if node.State != "dead" {
+		return res, fmt.Errorf("revive: %q is not dead", node.Name)
+	}
+	if node.SessionID == "" {
+		return res, fmt.Errorf("revive: %q has no recorded session to resume", node.Name)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return res, fmt.Errorf("revive: %w", err)
+	}
+	if !resume.Exists(home, node.Workdir, node.SessionID) {
+		return res, ErrSessionGone
+	}
+
+	h, err := f.Adapter.Launch(ctx, spawn.Spec{
+		Name:      node.Name,
+		Role:      node.Role,
+		Workdir:   node.Workdir,
+		Mode:      "tmux-window",
+		SessionID: node.SessionID,
+		Resume:    true, // restore, don't start fresh; no prompt re-append
+	})
+	if err != nil {
+		return res, fmt.Errorf("revive launch: %w", err)
+	}
+	if err := f.Store.Revive(node.NodeID); err != nil {
+		return res, fmt.Errorf("revive reset: %w", err)
+	}
+	if err := f.Store.SetSpawnRef(node.NodeID, h.SpawnRef, broker.NormalizeTTY(h.TTY)); err != nil {
+		return res, fmt.Errorf("revive record spawn ref: %w", err)
+	}
+	if f.Gates != nil {
+		if err := f.Gates.Clear(ctx, h.SpawnRef); err != nil {
+			return res, fmt.Errorf("revive clear gates: %w", err)
+		}
+	}
+	peerID, err := f.waitForBind(ctx, broker.NormalizeTTY(h.TTY))
+	if err != nil {
+		if errors.Is(err, errBindPending) {
+			res.Pending = true
+			return res, nil
+		}
+		return res, err
+	}
+	if err := f.Store.BindPeer(node.NodeID, peerID); err != nil {
+		return res, fmt.Errorf("revive bind: %w", err)
+	}
 	res.PeerID = peerID
 	return res, nil
 }

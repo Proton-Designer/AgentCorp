@@ -18,6 +18,12 @@ type Node struct {
 	State     string // pending | alive | dead | failed
 	CreatedAt string
 	DiedAt    string // "" = NULL (not dead)
+
+	// SessionID is the Claude Code session id AgentCorp assigned when it spawned
+	// this agent (via `claude --session-id`). It's what lets a dead agent be
+	// revived with its memory intact (`claude --resume <id>`). Empty for adopted
+	// agents (we didn't spawn them) and for pre-session-id nodes.
+	SessionID string
 }
 
 // nullify maps Go's empty string to SQL NULL. This matters for peer_id:
@@ -40,11 +46,12 @@ func str(ns sql.NullString) string {
 func (s *Store) InsertNode(n Node) error {
 	_, err := s.db.Exec(`
 		INSERT INTO nodes (node_id, peer_id, bind_tty, name, role, parent_id,
-		                   workdir, spawn_mode, spawn_ref, state, created_at, died_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		                   workdir, spawn_mode, spawn_ref, state, created_at, died_at,
+		                   session_id)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		n.NodeID, nullify(n.PeerID), nullify(n.BindTTY), n.Name, n.Role,
 		nullify(n.ParentID), n.Workdir, n.SpawnMode, nullify(n.SpawnRef),
-		n.State, n.CreatedAt, nullify(n.DiedAt))
+		n.State, n.CreatedAt, nullify(n.DiedAt), nullify(n.SessionID))
 	return err
 }
 
@@ -108,7 +115,7 @@ func (s *Store) DeleteNode(nodeID string) error {
 func (s *Store) ListNodes() ([]Node, error) {
 	rows, err := s.db.Query(`
 		SELECT node_id, peer_id, bind_tty, name, role, parent_id,
-		       workdir, spawn_mode, spawn_ref, state, created_at, died_at
+		       workdir, spawn_mode, spawn_ref, state, created_at, died_at, session_id
 		FROM nodes ORDER BY created_at`)
 	if err != nil {
 		return nil, err
@@ -118,17 +125,42 @@ func (s *Store) ListNodes() ([]Node, error) {
 	var out []Node
 	for rows.Next() {
 		var n Node
-		var peerID, bindTTY, parentID, spawnRef, diedAt sql.NullString
+		var peerID, bindTTY, parentID, spawnRef, diedAt, sessionID sql.NullString
 		if err := rows.Scan(&n.NodeID, &peerID, &bindTTY, &n.Name, &n.Role,
 			&parentID, &n.Workdir, &n.SpawnMode, &spawnRef,
-			&n.State, &n.CreatedAt, &diedAt); err != nil {
+			&n.State, &n.CreatedAt, &diedAt, &sessionID); err != nil {
 			return nil, err
 		}
 		n.PeerID, n.BindTTY = str(peerID), str(bindTTY)
 		n.ParentID, n.SpawnRef, n.DiedAt = str(parentID), str(spawnRef), str(diedAt)
+		n.SessionID = str(sessionID)
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// Revive resets a dead node back to pending so it can be rebound to a freshly
+// respawned session (the resume flow). It clears peer_id, bind_tty, spawn_ref,
+// and died_at, and only acts on a currently-dead node — reviving anything else
+// is a no-op guarded by the WHERE clause. The caller respawns the session
+// (claude --resume) and records the new spawn_ref/bind_tty via SetSpawnRef,
+// after which the sync tick binds it exactly like a fresh hire.
+func (s *Store) Revive(nodeID string) error {
+	res, err := s.db.Exec(
+		`UPDATE nodes SET state = 'pending', peer_id = NULL, bind_tty = NULL,
+		                  spawn_ref = NULL, died_at = NULL
+		 WHERE node_id = ? AND state = 'dead'`, nodeID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("revive %s: node not found or not dead", nodeID)
+	}
+	return nil
 }
 
 // SetSpawnRef records the tmux pane id and the normalized bind tty.

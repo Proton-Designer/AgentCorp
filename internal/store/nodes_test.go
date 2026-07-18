@@ -145,3 +145,48 @@ func TestBindPeerRejectsDeadNode(t *testing.T) {
 		t.Fatalf("state = %q after rejected bind, want dead", nodes[0].State)
 	}
 }
+
+// Revive resets a dead node to pending and clears its binding fields so it can
+// be respawned and rebound.
+func TestReviveResetsDeadToPending(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.InsertNode(Node{
+		NodeID: "1", Name: "x", Role: "r", Workdir: "/t", SpawnMode: "tmux-window",
+		PeerID: "p1", BindTTY: "ttys1", SpawnRef: "%1", State: "dead",
+		CreatedAt: "2026-07-18T06:00:00Z", DiedAt: "2026-07-18T06:05:00Z", SessionID: "sess-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Revive("1"); err != nil {
+		t.Fatal(err)
+	}
+	n := s.mustNode(t, "1")
+	if n.State != "pending" {
+		t.Fatalf("state = %q, want pending", n.State)
+	}
+	if n.PeerID != "" || n.BindTTY != "" || n.SpawnRef != "" || n.DiedAt != "" {
+		t.Fatalf("binding fields not cleared: %+v", n)
+	}
+	if n.SessionID != "sess-1" {
+		t.Fatalf("session id must survive revive, got %q", n.SessionID)
+	}
+	// Reviving a non-dead node is rejected.
+	if err := s.Revive("1"); err == nil {
+		t.Fatal("reviving a now-pending node must fail")
+	}
+}
+
+func (s *Store) mustNode(t *testing.T, id string) Node {
+	t.Helper()
+	nodes, err := s.ListNodes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if n.NodeID == id {
+			return n
+		}
+	}
+	t.Fatalf("node %s not found", id)
+	return Node{}
+}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/Proton-Designer/AgentCorp/internal/hire"
 	"github.com/Proton-Designer/AgentCorp/internal/lifecycle"
 	"github.com/Proton-Designer/AgentCorp/internal/msg"
+	"github.com/Proton-Designer/AgentCorp/internal/resume"
 	"github.com/Proton-Designer/AgentCorp/internal/snapshot"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 	"github.com/Proton-Designer/AgentCorp/internal/vitals"
@@ -262,6 +264,55 @@ func (m Model) submitRename(newName string) tea.Cmd {
 			return actionResultMsg{text: fmt.Sprintf("rename failed: %v", err)}
 		}
 		return actionResultMsg{text: fmt.Sprintf("renamed %q → %q", old, newName)}
+	}
+}
+
+// submitRevive brings a dead agent back with its memory (claude --resume). If
+// the agent's session transcript is gone — or it never had one (adopted /
+// pre-session-id) — it can't be revived, so it points the operator at the two
+// real options instead: delete it (x) or adopt a replacement (a).
+func (m Model) submitRevive() tea.Cmd {
+	if m.live == nil {
+		return flash("revive unavailable: no live session")
+	}
+	sel := m.selected()
+	if sel == nil {
+		return flash("nothing selected")
+	}
+	row, ok := m.nodeRowByName(sel.ID)
+	if !ok {
+		return flash("revive cancelled")
+	}
+	if row.State != "dead" {
+		return flash("%s isn't dead — nothing to revive", sel.ID)
+	}
+	home, _ := os.UserHomeDir()
+	if row.SessionID == "" || !resume.Exists(home, row.Workdir, row.SessionID) {
+		return flash("no resumable session for %q — its memory is gone. Press x to delete it, or a to adopt a replacement.", row.Name)
+	}
+
+	if m.live.hireFlow == nil {
+		return flash("revive unavailable: hire flow not wired")
+	}
+	flow := m.live.hireFlow
+	return func() tea.Msg {
+		deadline := flow.BindTimeout + 60*time.Second
+		if deadline < 90*time.Second {
+			deadline = 90 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		defer cancel()
+		res, err := flow.Revive(ctx, row)
+		if err != nil {
+			if errors.Is(err, hire.ErrSessionGone) {
+				return actionResultMsg{text: fmt.Sprintf("%q's session is gone — press x to delete it or a to adopt a replacement", row.Name)}
+			}
+			return actionResultMsg{text: fmt.Sprintf("revive %q failed: %v", row.Name, err)}
+		}
+		if res.Pending {
+			return actionResultMsg{text: fmt.Sprintf("reviving %q — reconnecting when its session registers", row.Name)}
+		}
+		return actionResultMsg{text: fmt.Sprintf("revived %q (peer %s)", row.Name, res.PeerID)}
 	}
 }
 

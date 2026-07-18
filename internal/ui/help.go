@@ -15,6 +15,7 @@ var helpKeys = [][2]string{
 	{"R", "rename the selected agent"},
 	{"r", "move it under a new manager"},
 	{"x", "fire the selected agent"},
+	{"z", "revive a dead agent (resume its session)"},
 	{"shift-D", "disband a subtree"},
 	{"/", "find by name / role / status"},
 	{"l", "activity feed (org message log)"},

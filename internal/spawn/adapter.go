@@ -36,6 +36,20 @@ type Spec struct {
 	PromptFile string
 
 	Mode string // "tmux-window" (v1) or "" (defaults to tmux-window)
+
+	// SessionID is the Claude Code session id for this launch. On a fresh hire
+	// it's an AgentCorp-generated id passed via `--session-id` so AgentCorp can
+	// later resume it. On a revive (Resume=true) it's the stored id of the dead
+	// agent's session, passed via `--resume` to bring it back with its memory.
+	// It's a UUID AgentCorp controls, never operator text — but it still travels
+	// as its own argv element like everything else.
+	SessionID string
+
+	// Resume, when true, launches `claude --resume <SessionID>` (restore an
+	// existing session) rather than `claude --session-id <SessionID>` (start a
+	// new one with a chosen id). The system prompt is not re-appended on resume:
+	// the session already carries its identity and history.
+	Resume bool
 }
 
 // Handle identifies a launched session for later tty-binding (spec §6.1)
