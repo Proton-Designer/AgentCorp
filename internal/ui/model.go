@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/Proton-Designer/AgentCorp/internal/layout"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 	"github.com/Proton-Designer/AgentCorp/internal/sync"
+	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
 
 const cardW, cardH = 14, 3
@@ -233,6 +235,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// renderChart paints the org chart, in colour when live and colour is enabled,
+// monochrome otherwise (static models, tests, NO_COLOR).
+func (m Model) renderChart() string {
+	if m.live == nil {
+		return Render(m.root, m.width)
+	}
+	statuses := m.statusMap()
+	return RenderStyled(m.root, m.width, func(id string) vitals.Status {
+		return statuses[id]
+	})
+}
+
+// statusMap classifies every node once per render (keyed by the name the layout
+// tree carries), so the styled renderer doesn't re-list the store per card.
+func (m Model) statusMap() map[string]vitals.Status {
+	out := map[string]vitals.Status{}
+	if m.live == nil {
+		return out
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return out
+	}
+	now := time.Now()
+	for _, n := range nodes {
+		out[n.Name] = vitals.NodeStatus(n, m.live.peers, m.live.msgs, now, ActivityWindow)
+	}
+	return out
+}
+
 func (m Model) selected() *layout.Node {
 	if m.cursor < 0 || m.cursor >= len(m.flat) {
 		return nil
@@ -259,7 +291,7 @@ func (m Model) View() string {
 			b.WriteString("  " + hudLine(m.live.summary, m.live.spark, m.live.stale) + "\n")
 		}
 		b.WriteString("\n")
-		b.WriteString(Render(m.root, m.width))
+		b.WriteString(m.renderChart())
 		b.WriteString("\n")
 	}
 
