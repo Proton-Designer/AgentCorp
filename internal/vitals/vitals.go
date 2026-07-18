@@ -62,11 +62,16 @@ func Vitals(nodes []store.Node, peers []broker.Peer, msgs []broker.Message, now 
 				s.Quiet++
 			}
 		case n.PeerID != "":
-			// Bound, but the peer is currently absent from the broker and
-			// the DB hasn't caught up to 'dead' yet (sync/ reconciles on a
-			// tick; this snapshot may be between ticks). A live HUD must
-			// not call this Alive just because the DB hasn't updated.
-			s.Dead++
+			// Bound, but the peer is currently absent from the broker and the
+			// DB hasn't caught up to 'dead' yet (sync/ reconciles on a tick;
+			// this snapshot may be between ticks). A live HUD must not call this
+			// Alive just because the DB hasn't updated — BUT a brand-new hire
+			// whose peer registration just lagged the poll is still forming, not
+			// dead, so within the bind grace it counts as neither (like a
+			// pending node) rather than flashing the 'dead' tally.
+			if !withinBindGrace(n.CreatedAt, now) {
+				s.Dead++
+			}
 			// n.PeerID == "" (pending/failed): counted in neither bucket. It's
 			// not alive, not dead, and not unmanaged — it's still forming.
 		}

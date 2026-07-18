@@ -86,3 +86,23 @@ func TestNodeStatusNeverReturnsUnreachable(t *testing.T) {
 		}
 	}
 }
+
+// A freshly-hired node whose peer hasn't shown up in the broker snapshot yet
+// must NOT flash 'dead' — it's registration lag, shown as still-settling. An
+// established node with an absent peer is still dead promptly.
+func TestNodeStatusFreshHireDoesNotFlashDead(t *testing.T) {
+	// fixedNow = 2026-07-16T12:00:00Z; grace = 20s.
+	fresh := vnode("n1", "p1", "", "alive", "2026-07-16T11:59:55Z") // 5s old, peer absent
+	if got := NodeStatus(fresh, nil, nil, fixedNow, testWindow); got != StatusPending {
+		t.Fatalf("fresh bound node with lagging peer = %q, want pending (no dead flash)", got)
+	}
+	old := vnode("n2", "p2", "", "alive", "2026-07-16T11:00:00Z") // an hour old, peer absent
+	if got := NodeStatus(old, nil, nil, fixedNow, testWindow); got != StatusDead {
+		t.Fatalf("established bound node with absent peer = %q, want dead", got)
+	}
+	// Peer present → alive regardless of age.
+	live := []broker.Peer{{ID: "p1"}}
+	if got := NodeStatus(fresh, live, nil, fixedNow, testWindow); got != StatusQuiet {
+		t.Fatalf("bound node with live peer = %q, want quiet", got)
+	}
+}

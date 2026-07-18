@@ -63,6 +63,15 @@ func NodeStatus(node store.Node, peers []broker.Peer, msgs []broker.Message, now
 		}
 	}
 	if !live {
+		// Bound, but the peer isn't in THIS snapshot. For a freshly-hired agent
+		// that's almost always registration lag — the store bound it a beat
+		// before the broker poll caught up — not death. Show it as still
+		// settling for a short grace so a brand-new hire doesn't flash 'dead'
+		// for a frame before it recovers. Past the grace, an established agent's
+		// missing peer is treated as death promptly, as before.
+		if withinBindGrace(node.CreatedAt, now) {
+			return StatusPending
+		}
 		return StatusDead
 	}
 
@@ -70,4 +79,20 @@ func NodeStatus(node store.Node, peers []broker.Peer, msgs []broker.Message, now
 		return StatusActive
 	}
 	return StatusQuiet
+}
+
+// BindSettleGrace is how long after creation a bound node whose peer is
+// momentarily absent from the broker snapshot is treated as still-settling
+// rather than dead. Covers the racy gap between a hire's bind (a store write)
+// and the next broker poll seeing the new peer.
+const BindSettleGrace = 20 * time.Second
+
+// withinBindGrace reports whether a node was created recently enough that a
+// missing peer is more likely registration lag than death.
+func withinBindGrace(createdAt string, now time.Time) bool {
+	t, ok := parseTimestamp(createdAt)
+	if !ok {
+		return false
+	}
+	return now.Sub(t) < BindSettleGrace
 }
