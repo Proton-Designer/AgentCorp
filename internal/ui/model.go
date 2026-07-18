@@ -241,6 +241,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openAdopt()
 		case "i":
 			m.openInspect()
+		case "b":
+			m.openBroadcast()
 		}
 	}
 	return m, nil
@@ -380,7 +382,7 @@ func (m Model) View() string {
 		if m.confirm != nil {
 			b.WriteString("\n" + renderConfirm(m.confirm, m.width))
 		}
-	case modeHire, modeMessage, modeSearch:
+	case modeHire, modeMessage, modeSearch, modeBroadcast:
 		b.WriteString("\n  " + m.activeInput().prompt + " " + m.activeInput().value + "▏\n")
 		b.WriteString("  ⏎ confirm · esc cancel\n")
 	case modeAdopt:
@@ -396,7 +398,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · x fire · shift-D disband · / find · q quit\n")
+		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · q quit\n")
 	}
 	return b.String()
 }
@@ -406,7 +408,7 @@ func (m Model) activeInput() input {
 	switch m.mode {
 	case modeHire:
 		return m.hireInput
-	case modeMessage:
+	case modeMessage, modeBroadcast:
 		return m.msgInput
 	case modeSearch:
 		return m.searchInput

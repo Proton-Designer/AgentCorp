@@ -19,6 +19,15 @@ import (
 // affected, not how each affected node is actually terminated (a pending
 // node has no live process to signal; that's the caller's concern).
 func Disband(nodes []store.Node, root string) ([]store.Node, error) {
+	return Subtree(nodes, root)
+}
+
+// Subtree returns every node in root's subtree, root included, in post-order
+// (a node never precedes any of its own descendants). It is the shared walk
+// behind both Disband (kill order) and broadcast (reach order) — the ordering
+// invariant is identical, and duplicating a recursive parent-cycle-guarded walk
+// twice is exactly the kind of drift this factoring prevents.
+func Subtree(nodes []store.Node, root string) ([]store.Node, error) {
 	byID := make(map[string]store.Node, len(nodes))
 	childrenOf := make(map[string][]store.Node, len(nodes))
 	for _, n := range nodes {
@@ -29,7 +38,7 @@ func Disband(nodes []store.Node, root string) ([]store.Node, error) {
 	}
 
 	if _, ok := byID[root]; !ok {
-		return nil, fmt.Errorf("disband: node %q not found", root)
+		return nil, fmt.Errorf("subtree: node %q not found", root)
 	}
 
 	var order []store.Node
@@ -41,7 +50,7 @@ func Disband(nodes []store.Node, root string) ([]store.Node, error) {
 		// Detected here instead: revisiting a node already on this walk
 		// means the subtree loops back on itself.
 		if visited[id] {
-			return fmt.Errorf("disband: cycle detected at node %q", id)
+			return fmt.Errorf("subtree: cycle detected at node %q", id)
 		}
 		visited[id] = true
 		for _, c := range childrenOf[id] {

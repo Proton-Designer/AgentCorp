@@ -14,14 +14,15 @@ import (
 type mode int
 
 const (
-	modeNormal   mode = iota
-	modeHire          // entering a name for a new agent
-	modeMessage       // composing a message to the selected agent
-	modeSearch        // filtering the tree
-	modeConfirm       // a fire/disband confirmation is up
-	modeAdopt         // picking an unmanaged peer to adopt into the chart
-	modeInspect       // a detail panel for the selected agent is up
-	modeHireRole      // second hire stage: picking a role template
+	modeNormal    mode = iota
+	modeHire           // entering a name for a new agent
+	modeMessage        // composing a message to the selected agent
+	modeSearch         // filtering the tree
+	modeConfirm        // a fire/disband confirmation is up
+	modeAdopt          // picking an unmanaged peer to adopt into the chart
+	modeInspect        // a detail panel for the selected agent is up
+	modeHireRole       // second hire stage: picking a role template
+	modeBroadcast      // composing a message to the selected node's whole subtree
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -106,6 +107,19 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		}
 		if done {
 			cmd := m.submitMessage(m.msgInput.value)
+			m.mode = modeNormal
+			return m, cmd, true
+		}
+		return m, nil, true
+
+	case modeBroadcast:
+		done, cancel := m.msgInput.handle(key)
+		if cancel {
+			m.mode = modeNormal
+			return m, nil, true
+		}
+		if done {
+			cmd := m.submitBroadcast(m.msgInput.value)
 			m.mode = modeNormal
 			return m, cmd, true
 		}
@@ -244,6 +258,22 @@ func (m *Model) openInspect() {
 		return
 	}
 	m.mode = modeInspect
+}
+
+// openBroadcast composes a message to every reachable agent in the selected
+// node's subtree. Refuses to open when there's no live, bound descendant to
+// reach — a broadcast to nobody is a no-op worth saying out loud.
+func (m *Model) openBroadcast() {
+	sel := m.selected()
+	if sel == nil || m.live == nil {
+		return
+	}
+	if n := len(m.broadcastTargets(sel.ID)); n == 0 {
+		m.flash = "no reachable team under " + sel.ID
+		return
+	}
+	m.msgInput = input{prompt: "broadcast to " + sel.ID + "'s team:"}
+	m.mode = modeBroadcast
 }
 
 // applyFilter dims nodes that don't match the search. A non-matching node is

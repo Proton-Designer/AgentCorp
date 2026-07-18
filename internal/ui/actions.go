@@ -91,6 +91,71 @@ func (m Model) submitHire(name, roleTemplate string) tea.Cmd {
 	}
 }
 
+// broadcastTargets returns the live, bound descendants of rootName (the subtree
+// minus the root itself) — the agents a broadcast would actually reach. Pending,
+// dead, and unbound nodes are excluded because there's no peer to deliver to.
+func (m Model) broadcastTargets(rootName string) []store.Node {
+	if m.live == nil {
+		return nil
+	}
+	root, ok := m.nodeRowByName(rootName)
+	if !ok {
+		return nil
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return nil
+	}
+	sub, err := lifecycle.Subtree(nodes, root.NodeID)
+	if err != nil {
+		return nil
+	}
+	var targets []store.Node
+	for _, n := range sub {
+		if n.NodeID == root.NodeID {
+			continue // your team, not yourself
+		}
+		if n.State == "alive" && n.PeerID != "" {
+			targets = append(targets, n)
+		}
+	}
+	return targets
+}
+
+// submitBroadcast sends one message to every reachable agent in the selected
+// node's subtree, reporting per-target results — never a single pass/fail. A
+// broadcast that silently dropped some recipients while reporting "sent" would
+// be a worse lie than failing them all visibly.
+func (m Model) submitBroadcast(text string) tea.Cmd {
+	if m.live == nil {
+		return flash("broadcast unavailable: no live session")
+	}
+	sel := m.selected()
+	if sel == nil || text == "" {
+		return flash("broadcast cancelled")
+	}
+	targets := m.broadcastTargets(sel.ID)
+	if len(targets) == 0 {
+		return flash("no reachable team under %s", sel.ID)
+	}
+	db := m.live.brokerDB
+	root := sel.ID
+	return func() tea.Msg {
+		sent, failed := 0, 0
+		for _, t := range targets {
+			if err := msg.Send(db, "agentcorp", t.PeerID, text); err != nil {
+				failed++
+			} else {
+				sent++
+			}
+		}
+		if failed == 0 {
+			return actionResultMsg{text: fmt.Sprintf("broadcast queued → %d in %s's team", sent, root)}
+		}
+		return actionResultMsg{text: fmt.Sprintf("broadcast to %s's team: %d queued, %d failed", root, sent, failed)}
+	}
+}
+
 // submitMessage sends an operator message to the selected agent.
 func (m Model) submitMessage(text string) tea.Cmd {
 	if m.live == nil {
