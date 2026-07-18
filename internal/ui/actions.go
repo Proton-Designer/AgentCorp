@@ -81,6 +81,9 @@ func (m Model) submitHire(name string) tea.Cmd {
 		if err != nil {
 			return actionResultMsg{text: fmt.Sprintf("hire %q failed: %v", name, err)}
 		}
+		if res.Pending {
+			return actionResultMsg{text: fmt.Sprintf("%q spawning — will bind when its session registers", name)}
+		}
 		return actionResultMsg{text: fmt.Sprintf("hired %q (peer %s)", name, res.PeerID)}
 	}
 }

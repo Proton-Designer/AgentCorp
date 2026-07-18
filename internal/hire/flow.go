@@ -2,6 +2,7 @@ package hire
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,13 @@ import (
 	"github.com/Proton-Designer/AgentCorp/internal/spawn"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 )
+
+// errBindPending marks a hire whose session was spawned and its gates cleared,
+// but which had not registered with the broker by the bind deadline. It is NOT
+// a failure: the node keeps its recorded bind_tty and stays pending, so the
+// sync tick's PendingBind binds it automatically once the session registers.
+// This is what makes a slow cold start self-heal instead of dying.
+var errBindPending = errors.New("bind pending: session has not registered yet")
 
 // Request is what the operator asked for.
 type Request struct {
@@ -22,12 +30,14 @@ type Request struct {
 	Prompt   string // the role's system prompt
 }
 
-// Result reports what happened. Both fields are meaningful on failure: NodeID
-// always identifies the row so the caller can show a failed node rather than
-// losing it.
+// Result reports what happened. NodeID always identifies the row so the caller
+// can show the node rather than losing it. Pending is set when the session was
+// spawned but had not registered by the bind deadline: not a failure — the node
+// stays pending and the sync tick will bind it when the session appears.
 type Result struct {
-	NodeID string
-	PeerID string
+	NodeID  string
+	PeerID  string
+	Pending bool
 }
 
 // peerLister is injectable so the flow is testable without a live broker.
@@ -133,6 +143,20 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 	// 5. Wait for the peer to appear, matched by tty.
 	peerID, err := f.waitForBind(ctx, broker.NormalizeTTY(h.TTY))
 	if err != nil {
+		if errors.Is(err, errBindPending) {
+			// Spawned and gates cleared, but the session hasn't registered by
+			// the deadline — a slow cold start, not a failure. Leave the node
+			// pending with its bind_tty intact; the sync tick's PendingBind will
+			// bind it the moment it registers on that pane's tty.
+			//
+			// The tty-reuse risk spec §6.1 named is bounded by the pane's life:
+			// the pane persists (remain-on-exit on) so its tty isn't reused while
+			// the node waits, and if the pane dies, Decide's pane-death signal
+			// tombstones the pending node (it has a spawn_ref) before any reuse
+			// can matter. So "recoverable pending" can't silently mis-bind.
+			res.Pending = true
+			return res, nil
+		}
 		f.fail(nodeID)
 		return res, err
 	}
@@ -168,9 +192,11 @@ func (f *Flow) waitForBind(ctx context.Context, wantTTY string) (string, error) 
 		}
 		time.Sleep(f.BindPoll)
 	}
-	return "", fmt.Errorf("session never registered with the broker within %s "+
-		"(tty %s): it may be stuck at a prompt, or the channel flag may not be set",
-		f.BindTimeout, wantTTY)
+	// Deadline reached without a match. Wrap errBindPending so the caller can
+	// distinguish "slow, keep the node pending for the tick to recover" from a
+	// hard failure — while still carrying a descriptive message for logs.
+	return "", fmt.Errorf("session did not register within %s (tty %s); "+
+		"leaving it pending for background bind: %w", f.BindTimeout, wantTTY, errBindPending)
 }
 
 // fail marks a node failed rather than leaving it pending forever. A pending

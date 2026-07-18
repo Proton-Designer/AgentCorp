@@ -119,25 +119,32 @@ func TestRunNormalizesTTYAcrossTheFormatBoundary(t *testing.T) {
 	}
 }
 
-// A session that never registers must FAIL, not hang pending forever. A
-// pending node that will never bind is indistinguishable from one still
-// starting — 'failed' says the hire is over and where to look.
-func TestRunMarksNodeFailedWhenBindTimesOut(t *testing.T) {
+// A session that hasn't registered by the bind deadline is a slow cold start,
+// not a failure: the node stays PENDING with its bind_tty intact so the sync
+// tick's PendingBind can bind it the moment it registers. Run reports this as
+// Pending (no error), never as a hard failure, and never as a bound peer.
+func TestRunLeavesNodePendingWhenBindTimesOut(t *testing.T) {
 	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys777"}}
 	f, st := testFlow(t, a, func() ([]broker.Peer, error) {
 		return []broker.Peer{{ID: "someone-else", TTY: "ttys001"}}, nil
 	})
 
 	res, err := f.Run(context.Background(), req(t))
-	if err == nil {
-		t.Fatal("bind never happened but Run returned nil")
+	if err != nil {
+		t.Fatalf("a slow bind must not be a hard error, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "never registered") {
-		t.Fatalf("error does not explain the failure: %v", err)
+	if !res.Pending {
+		t.Fatal("Result.Pending not set — the caller can't tell the hire is still forming")
 	}
-	if n := nodeByID(t, st, res.NodeID); n.State != "failed" {
-		t.Fatalf("state = %q, want failed — a hire that can never complete must "+
-			"not sit in pending forever", n.State)
+	if res.PeerID != "" {
+		t.Fatalf("PeerID = %q, want empty — nothing bound", res.PeerID)
+	}
+	n := nodeByID(t, st, res.NodeID)
+	if n.State != "pending" {
+		t.Fatalf("state = %q, want pending — a slow session must stay recoverable, not fail", n.State)
+	}
+	if n.BindTTY == "" {
+		t.Fatal("bind_tty was cleared — the tick can no longer bind this node")
 	}
 }
 
