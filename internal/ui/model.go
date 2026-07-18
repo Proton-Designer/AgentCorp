@@ -247,6 +247,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if colorEnabled {
 				m.flash = "theme: " + cycleTheme()
 			}
+		case "?":
+			m.mode = modeHelp
 		}
 	}
 	return m, nil
@@ -395,6 +397,8 @@ func (m Model) View() string {
 		b.WriteString("\n" + m.renderInspect())
 	case modeHireRole:
 		b.WriteString("\n" + m.renderHireRole())
+	case modeHelp:
+		b.WriteString("\n" + m.renderHelp())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
@@ -402,7 +406,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · q quit\n")
 	}
 	return b.String()
 }

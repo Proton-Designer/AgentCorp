@@ -23,6 +23,7 @@ const (
 	modeInspect        // a detail panel for the selected agent is up
 	modeHireRole       // second hire stage: picking a role template
 	modeBroadcast      // composing a message to the selected node's whole subtree
+	modeHelp           // the keybind + colour-legend overlay
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -156,6 +157,14 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 			cmd := m.doAdopt()
 			m.mode = modeNormal
 			return m, cmd, true
+		}
+		return m, nil, true
+
+	case modeHelp:
+		// Any of these dismiss the overlay.
+		switch key {
+		case "esc", "?", "enter", "q":
+			m.mode = modeNormal
 		}
 		return m, nil, true
 
