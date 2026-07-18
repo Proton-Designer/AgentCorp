@@ -118,7 +118,41 @@ func NewLive(st *store.Store, nodes []store.Node) Model {
 		lastPanes: map[string]sync.Pane{},
 		brokerDB:  brokerDB,
 		// Default: unscoped — every session on the machine. WithScope narrows it.
-		listPeers: func() ([]broker.Peer, error) { return broker.ListPeers(brokerDB) },
+		listPeers:    func() ([]broker.Peer, error) { return broker.ListPeers(brokerDB) },
+		listMessages: func() ([]broker.Message, error) { return broker.ListMessages(brokerDB) },
+		listPanes:    sync.ListPanes,
+	}
+	return m
+}
+
+// NewDemo builds a live model backed entirely by injected sources — no real
+// broker, no tmux, no spawned sessions. It renders a populated org chart that
+// repaints on the normal tick with synthetic activity, so the console can be
+// driven and screenshotted (and a terminal-automation harness can test its
+// settle logic against the ~1s repaint) without touching the machine.
+func NewDemo(st *store.Store, nodes []store.Node,
+	peers func() ([]broker.Peer, error),
+	msgs func() ([]broker.Message, error),
+	companyName string) Model {
+	m := New(nodes)
+	m.live = &liveState{
+		st:           st,
+		lastPanes:    map[string]sync.Pane{},
+		brokerDB:     "",
+		listPeers:    peers,
+		listMessages: msgs,
+		// No tmux in demo — an empty pane set means the pane-death signal never
+		// fires, so seeded nodes stay alive purely on the injected peer list.
+		listPanes: func() (map[string]sync.Pane, error) { return map[string]sync.Pane{}, nil },
+		company:   company.Company{Name: companyName},
+	}
+	// Pre-populate peers + summary so the very first frame (before the first
+	// tick lands) already shows the agents alive rather than briefly dead.
+	if p, err := peers(); err == nil {
+		now := time.Now()
+		m.live.peers = p
+		m.live.started = now
+		m.live.summary = vitals.Vitals(nodes, p, nil, now, ActivityWindow)
 	}
 	return m
 }

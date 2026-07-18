@@ -55,6 +55,12 @@ type liveState struct {
 	// via companyRoot below — see applyTick.
 	listPeers func() ([]broker.Peer, error)
 
+	// listMessages and listPanes are the other two live sources. They default to
+	// the real broker/tmux, but are injectable so demo mode can drive a populated
+	// chart with synthetic activity and no real sessions.
+	listMessages func() ([]broker.Message, error)
+	listPanes    func() (map[string]sync.Pane, error)
+
 	// company is the resolved company for this launch, for display only. Zero
 	// value (empty Name) means the directory is unscoped.
 	company company.Company
@@ -92,7 +98,7 @@ func (m Model) tickCmd() tea.Cmd {
 	live := m.live
 	return func() tea.Msg {
 		msg, next := sync.Tick(
-			sync.ListPanes,
+			live.listPanes,
 			live.listPeers,
 			live.st,
 			live.lastPanes,
@@ -149,7 +155,7 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	if peers, err := m.live.listPeers(); err == nil {
 		m.live.peers = peers
 	}
-	if msgs, err := broker.ListMessages(m.live.brokerDB); err == nil {
+	if msgs, err := m.live.listMessages(); err == nil {
 		// Scope to this company's traffic: the broker is machine-wide, so
 		// unrelated sessions' messages would otherwise inflate the sparkline
 		// and ticker with activity that isn't this company's.

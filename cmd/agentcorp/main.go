@@ -33,6 +33,11 @@ func main() {
 }
 
 func run() error {
+	for _, a := range os.Args[1:] {
+		if a == "--demo" {
+			return runDemo()
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -133,6 +138,114 @@ func bindTimeout(def time.Duration) time.Duration {
 	return def
 }
 
+// runDemo launches AgentCorp against a seeded, synthetic org — no consent, no
+// company prompt, no real broker/tmux, no spawned Claude sessions. It exists so
+// the console can be shown, driven, and screenshotted (and a terminal-automation
+// harness can test its settle logic against the live ~1s repaint) without any
+// machine side effects.
+func runDemo() error {
+	dir, err := os.MkdirTemp("", "agentcorp-demo-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	s, err := store.Open(filepath.Join(dir, "demo.db"))
+	if err != nil {
+		return fmt.Errorf("demo store: %w", err)
+	}
+	defer s.Close()
+
+	// Seed a small org: a lead with three reports and a grand-report. Alive and
+	// bound to synthetic peers; empty spawn_ref so nothing tries to reap them.
+	seed := []store.Node{
+		{NodeID: "1", Name: "CEO", Role: "lead", State: "alive", PeerID: "demo-1", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:00Z"},
+		{NodeID: "2", Name: "backend", Role: "engineer", ParentID: "1", State: "alive", PeerID: "demo-2", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:01Z"},
+		{NodeID: "3", Name: "frontend", Role: "engineer", ParentID: "1", State: "alive", PeerID: "demo-3", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:02Z"},
+		{NodeID: "4", Name: "research", Role: "researcher", ParentID: "1", State: "alive", PeerID: "demo-4", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:03Z"},
+		{NodeID: "5", Name: "intern", Role: "engineer", ParentID: "2", State: "alive", PeerID: "demo-5", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:04Z"},
+	}
+	peerIDs := make([]string, len(seed))
+	for i, n := range seed {
+		if err := s.InsertNode(n); err != nil {
+			return fmt.Errorf("seed node %s: %w", n.Name, err)
+		}
+		peerIDs[i] = n.PeerID
+	}
+	nodes, err := s.ListNodes()
+	if err != nil {
+		return err
+	}
+
+	// Injected sources: fixed live peers (nodes stay alive) and a message stream
+	// that GROWS over real time, so the sparkline and ticker animate on every
+	// tick — the periodic-repaint case a settle detector has to handle.
+	peers := demoPeers(peerIDs)
+	start := time.Now()
+	msgs := demoMessages(start, peerIDs)
+
+	model := ui.NewDemo(s, nodes, peers, msgs, "Demo Co")
+	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
+	return err
+}
+
+func demoPeers(ids []string) func() ([]broker.Peer, error) {
+	ps := make([]broker.Peer, len(ids))
+	for i, id := range ids {
+		ps[i] = broker.Peer{ID: id, CWD: "/demo", Summary: "working on the demo"}
+	}
+	return func() ([]broker.Peer, error) { return ps, nil }
+}
+
+var demoTexts = []string{
+	"on it", "shipped the fix", "reviewing now", "found an edge case",
+	"tests green", "need a second pair of eyes", "deploying", "done",
+}
+
+// demoMessages returns a source whose message count grows with elapsed time
+// (one every ~2s), so throughput and the ticker keep moving.
+func demoMessages(start time.Time, peerIDs []string) func() ([]broker.Message, error) {
+	return func() ([]broker.Message, error) {
+		n := int(time.Since(start) / (2 * time.Second))
+		out := make([]broker.Message, 0, n)
+		for i := 0; i < n; i++ {
+			out = append(out, broker.Message{
+				ID:     int64(i),
+				FromID: peerIDs[i%len(peerIDs)],
+				ToID:   peerIDs[(i+1)%len(peerIDs)],
+				Text:   demoTexts[i%len(demoTexts)],
+				SentAt: start.Add(time.Duration(i) * 2 * time.Second).UTC().Format(time.RFC3339),
+			})
+		}
+		return out, nil
+	}
+}
+
+// sanitizeName strips ANSI escape sequences and control characters from a
+// plain-terminal line read, leaving only printable text (trimmed). So a
+// Down-arrow (ESC [ B) or a lone Escape typed into the company prompt is
+// discarded rather than embedded in the name.
+func sanitizeName(s string) string {
+	var b strings.Builder
+	r := []rune(s)
+	for i := 0; i < len(r); i++ {
+		if r[i] == 0x1b { // ESC — drop the whole escape sequence
+			if i+1 < len(r) && r[i+1] == '[' {
+				i += 2
+				for i < len(r) && !(r[i] >= '@' && r[i] <= '~') { // CSI final byte
+					i++
+				}
+			}
+			continue
+		}
+		if r[i] < 0x20 || r[i] == 0x7f { // other control chars
+			continue
+		}
+		b.WriteRune(r[i])
+	}
+	return strings.TrimSpace(b.String())
+}
+
 // resolveCompany finds the company that owns cwd, or offers to create one.
 //
 // Returns the resolved company and its canonical root. A root of "" means the
@@ -154,7 +267,13 @@ func resolveCompany(stdin *bufio.Reader, cwd string) (company.Company, string, e
 	fmt.Println("  This directory isn't linked to a company yet.")
 	fmt.Print("  Name one to scope this folder (or leave blank to run unscoped): ")
 	line, _ := stdin.ReadString('\n')
-	name := strings.TrimSpace(line)
+	// Sanitize before use. This is a plain line read, not a TUI input, so a user
+	// (or an automated driver) who presses arrows/Escape to navigate has those
+	// escape sequences land in the line as literal bytes (observed: a driver
+	// left "t^[[Bi^[l" in the field). Strip escape sequences and control chars so
+	// stray navigation keys can't corrupt a company name — worst case the name
+	// comes out empty and we run unscoped, which is the safe default.
+	name := sanitizeName(line)
 	if name == "" {
 		fmt.Println("  Running unscoped — every Claude session on this machine is visible.")
 		time.Sleep(400 * time.Millisecond)
