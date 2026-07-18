@@ -89,6 +89,73 @@ func TestAdoptRefusesDeadPeer(t *testing.T) {
 	}
 }
 
+// Adopting the same peer twice must fail loudly (peer_id UNIQUE) with a legible
+// message, and leave exactly one node — never a silent duplicate.
+func TestAdoptDoubleFailsLoudlyAndLegibly(t *testing.T) {
+	m, s := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "ceo", Role: "lead", Workdir: "/tmp",
+			SpawnMode: "tmux-window", State: "alive", PeerID: "boss", CreatedAt: "1"},
+	)
+	m.live.peers = []broker.Peer{{ID: "boss", CWD: "/tmp"}, {ID: "wild1", CWD: "/tmp/p"}}
+	m.live.unmanaged = []broker.Peer{{ID: "wild1", CWD: "/tmp/p"}}
+
+	// First adopt succeeds.
+	m = send(m, "a")
+	nm, cmd := m.Update(key("enter"))
+	m = nm.(Model)
+	if cmd != nil {
+		cmd()
+	}
+
+	// Second adopt of the same peer must collide.
+	m.live.unmanaged = []broker.Peer{{ID: "wild1", CWD: "/tmp/p"}}
+	m = send(m, "a")
+	nm, cmd = m.Update(key("enter"))
+	m = nm.(Model)
+	var text string
+	if cmd != nil {
+		if msg, ok := cmd().(actionResultMsg); ok {
+			text = msg.text
+		}
+	}
+	if !strings.Contains(text, "already tracked") {
+		t.Fatalf("double-adopt message not legible: %q", text)
+	}
+	nodes, _ := s.ListNodes()
+	count := 0
+	for _, n := range nodes {
+		if n.PeerID == "wild1" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("peer wild1 adopted into %d nodes, want exactly 1", count)
+	}
+}
+
+// A dead selection falls back to root AND says so — never a silent substitution.
+func TestAdoptDeadSelectionNotesRootFallback(t *testing.T) {
+	m, _ := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "corpse", Role: "lead", Workdir: "/tmp",
+			SpawnMode: "tmux-window", State: "dead", CreatedAt: "1", DiedAt: "2026-07-18T06:00:00Z"},
+	)
+	m.live.peers = []broker.Peer{{ID: "wild1", CWD: "/tmp/p"}}
+	m.live.unmanaged = []broker.Peer{{ID: "wild1", CWD: "/tmp/p"}}
+
+	m = send(m, "a")
+	nm, cmd := m.Update(key("enter"))
+	m = nm.(Model)
+	var text string
+	if cmd != nil {
+		if msg, ok := cmd().(actionResultMsg); ok {
+			text = msg.text
+		}
+	}
+	if !strings.Contains(text, "selection was dead") {
+		t.Fatalf("dead-selection fallback was silent: %q", text)
+	}
+}
+
 // 'a' with no unmanaged peers just flashes, never opens an empty picker.
 func TestAdoptNoCandidates(t *testing.T) {
 	m, _ := liveModelWith(t,

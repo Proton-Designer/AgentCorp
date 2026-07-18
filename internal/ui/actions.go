@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -275,10 +276,17 @@ func (m Model) doAdopt() tea.Cmd {
 	}
 
 	// Adopt under the selected node if it's a valid living parent; else at root.
+	// A dead selection falls back to root — correct (never target a dead
+	// parent), but say so, since a silent substitution reads like a wrong claim.
 	parentID := ""
+	parentNote := ""
 	if sel := m.selected(); sel != nil {
-		if row, ok := m.nodeRowByName(sel.ID); ok && row.State != "dead" {
-			parentID = row.NodeID
+		if row, ok := m.nodeRowByName(sel.ID); ok {
+			if row.State == "dead" {
+				parentNote = " at root (selection was dead)"
+			} else {
+				parentID = row.NodeID
+			}
 		}
 	}
 
@@ -298,10 +306,14 @@ func (m Model) doAdopt() tea.Cmd {
 	return func() tea.Msg {
 		if err := st.InsertNode(node); err != nil {
 			// peer_id is UNIQUE: a double-adopt fails loudly here rather than
-			// silently duplicating the peer into two nodes.
+			// silently duplicating the peer into two nodes. Translate the raw
+			// driver constraint text into something an operator can read.
+			if strings.Contains(err.Error(), "UNIQUE") {
+				return actionResultMsg{text: fmt.Sprintf("%q is already tracked in the chart", name)}
+			}
 			return actionResultMsg{text: fmt.Sprintf("adopt failed: %v", err)}
 		}
-		return actionResultMsg{text: fmt.Sprintf("adopted %q", name)}
+		return actionResultMsg{text: fmt.Sprintf("adopted %q%s", name, parentNote)}
 	}
 }
 
