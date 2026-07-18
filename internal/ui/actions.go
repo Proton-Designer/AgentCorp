@@ -246,7 +246,12 @@ func (m Model) submitRename(newName string) tea.Cmd {
 		return flash("rename failed: %v", err)
 	}
 	for _, n := range nodes {
-		if n.NodeID != row.NodeID && n.Name == newName && n.State != "dead" {
+		// Uniqueness must hold across live AND dead rows: dead nodes are still
+		// rendered (dim) with their name as the layout id, and nodeRowByName is a
+		// first-match-by-created_at lookup with no live/dead disambiguation — so a
+		// live node sharing a dead node's name would make every name-based action
+		// silently target whichever row came first. (Found by 23qm3cgf.)
+		if n.NodeID != row.NodeID && n.Name == newName {
 			return flash("name %q is already taken", newName)
 		}
 	}

@@ -68,3 +68,26 @@ func TestMoveTargetsExcludesSelfDescendantsAndDead(t *testing.T) {
 		}
 	}
 }
+
+// The root moved under another node is rejected by the general cycle check with
+// no special case — root is every other node's ancestor, so the walk up from
+// any target reaches root immediately.
+func TestCheckMoveRejectsRootUnderOther(t *testing.T) {
+	n := moveTree()
+	if CheckMove(n, "root", "b") == nil {
+		t.Fatal("moving the root under another node must be rejected")
+	}
+}
+
+// A corrupt parent_id cycle (not involving the mover) must be rejected cleanly,
+// never walked forever.
+func TestCheckMoveRejectsCorruptCycle(t *testing.T) {
+	n := []store.Node{
+		{NodeID: "x", ParentID: "y", State: "alive"},
+		{NodeID: "y", ParentID: "x", State: "alive"}, // x<->y cycle
+		{NodeID: "m", State: "alive"},
+	}
+	if CheckMove(n, "m", "x") == nil {
+		t.Fatal("a corrupt parent cycle must be rejected, not walked forever")
+	}
+}

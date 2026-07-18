@@ -36,11 +36,20 @@ func CheckMove(nodes []store.Node, moverID, newParentID string) error {
 		return fmt.Errorf("move: cannot report to a dead agent")
 	}
 	// Walk up from newParent; reaching mover means newParent is inside mover's
-	// own subtree, so this move would create a cycle.
+	// own subtree, so this move would create a cycle. The seen guard is
+	// defensive: no current write path can produce a parent_id cycle that
+	// doesn't involve mover, but a future bug or a hand-edited DB could — and a
+	// clean rejection beats an infinite walk (a hang is a worse failure than an
+	// error by this project's own standard).
+	seen := map[string]bool{}
 	for cur := newParentID; cur != ""; {
 		if cur == moverID {
 			return fmt.Errorf("move: cannot move a node under its own descendant")
 		}
+		if seen[cur] {
+			return fmt.Errorf("move: parent chain is corrupt (cycle at %q)", cur)
+		}
+		seen[cur] = true
 		c, ok := byID[cur]
 		if !ok {
 			break
