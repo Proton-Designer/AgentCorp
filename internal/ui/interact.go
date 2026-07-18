@@ -20,6 +20,7 @@ const (
 	modeSearch       // filtering the tree
 	modeConfirm      // a fire/disband confirmation is up
 	modeAdopt        // picking an unmanaged peer to adopt into the chart
+	modeInspect      // a detail panel for the selected agent is up
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -114,6 +115,23 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		}
 		return m, nil, true
 
+	case modeInspect:
+		// The panel stays open while you arrow through the org — inspect-as-you-
+		// move. esc / i / enter close it.
+		switch key {
+		case "esc", "i", "enter", "q":
+			m.mode = modeNormal
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.flat)-1 {
+				m.cursor++
+			}
+		}
+		return m, nil, true
+
 	case modeConfirm:
 		switch key {
 		case "esc":
@@ -167,6 +185,15 @@ func (m *Model) openAdopt() {
 	}
 	m.adoptCursor = 0
 	m.mode = modeAdopt
+}
+
+// openInspect opens the detail panel for the selected agent.
+func (m *Model) openInspect() {
+	if m.selected() == nil {
+		m.flash = "nothing selected to inspect"
+		return
+	}
+	m.mode = modeInspect
 }
 
 // applyFilter dims nodes that don't match the search. A non-matching node is

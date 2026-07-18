@@ -233,6 +233,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openDisbandConfirm()
 		case "a":
 			m.openAdopt()
+		case "i":
+			m.openInspect()
 		}
 	}
 	return m, nil
@@ -355,6 +357,8 @@ func (m Model) View() string {
 		b.WriteString("  ⏎ confirm · esc cancel\n")
 	case modeAdopt:
 		b.WriteString("\n" + m.renderAdopt())
+	case modeInspect:
+		b.WriteString("\n" + m.renderInspect())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
@@ -362,7 +366,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ↑↓ move · space fold · h hire · a adopt · m msg · x fire · shift-D disband · / find · q quit\n")
+		b.WriteString("  ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · x fire · shift-D disband · / find · q quit\n")
 	}
 	return b.String()
 }
