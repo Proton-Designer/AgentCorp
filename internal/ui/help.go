@@ -12,6 +12,8 @@ var helpKeys = [][2]string{
 	{"a", "adopt an unmanaged session"},
 	{"m", "message the selected agent"},
 	{"b", "broadcast to its whole team"},
+	{"R", "rename the selected agent"},
+	{"r", "move it under a new manager"},
 	{"x", "fire the selected agent"},
 	{"shift-D", "disband a subtree"},
 	{"/", "find by name / role / status"},

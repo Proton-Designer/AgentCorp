@@ -156,6 +156,49 @@ func (m Model) submitBroadcast(text string) tea.Cmd {
 	}
 }
 
+// doMove reparents the selected agent under the picked target (or root),
+// re-validating the cycle/dead-parent rules at confirm time since the picker
+// list can be a tick stale, and notifying the moved agent of its new manager.
+func (m Model) doMove() tea.Cmd {
+	if m.live == nil {
+		return flash("move unavailable: no live session")
+	}
+	sel := m.selected()
+	if sel == nil {
+		return flash("move cancelled")
+	}
+	row, ok := m.nodeRowByName(sel.ID)
+	if !ok {
+		return flash("move cancelled")
+	}
+	newParentID, newParentName := "", "(root)"
+	if m.moveCursor > 0 && m.moveCursor-1 < len(m.moveTargets) {
+		t := m.moveTargets[m.moveCursor-1]
+		newParentID, newParentName = t.NodeID, t.Name
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return flash("move failed: %v", err)
+	}
+	if err := lifecycle.CheckMove(nodes, row.NodeID, newParentID); err != nil {
+		return flash("%v", err)
+	}
+	st := m.live.st
+	db := m.live.brokerDB
+	moverID, moverName, moverPeer := row.NodeID, row.Name, row.PeerID
+	return func() tea.Msg {
+		if err := st.SetParent(moverID, newParentID); err != nil {
+			return actionResultMsg{text: fmt.Sprintf("move failed: %v", err)}
+		}
+		// Reconcile the fiction to the mesh: tell the moved agent who it now
+		// reports to (best-effort — a failed notice must not fail the move).
+		if moverPeer != "" {
+			_ = msg.Send(db, "agentcorp", moverPeer, "You now report to "+newParentName+".")
+		}
+		return actionResultMsg{text: fmt.Sprintf("moved %q under %s", moverName, newParentName)}
+	}
+}
+
 // submitRename renames the selected agent, rejecting a blank name or one
 // already used by another live node — names are how the UI identifies nodes,
 // so a duplicate would make actions ambiguous.

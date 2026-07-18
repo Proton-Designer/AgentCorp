@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Proton-Designer/AgentCorp/internal/layout"
+	"github.com/Proton-Designer/AgentCorp/internal/lifecycle"
 )
 
 // mode is the input mode. The tree view is normal; everything else captures
@@ -25,6 +26,7 @@ const (
 	modeBroadcast      // composing a message to the selected node's whole subtree
 	modeHelp           // the keybind + colour-legend overlay
 	modeRename         // editing the selected agent's name
+	modeMove           // picking a new parent for the selected agent
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -182,6 +184,25 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		}
 		return m, nil, true
 
+	case modeMove:
+		switch key {
+		case "esc":
+			m.mode = modeNormal
+		case "up", "k":
+			if m.moveCursor > 0 {
+				m.moveCursor--
+			}
+		case "down", "j":
+			if m.moveCursor < len(m.moveTargets) { // len targets after root at 0
+				m.moveCursor++
+			}
+		case "enter":
+			cmd := m.doMove()
+			m.mode = modeNormal
+			return m, cmd, true
+		}
+		return m, nil, true
+
 	case modeInspect:
 		// The panel stays open while you arrow through the org — inspect-as-you-
 		// move. esc / i / enter close it.
@@ -281,6 +302,27 @@ func (m *Model) openInspect() {
 		return
 	}
 	m.mode = modeInspect
+}
+
+// openMove opens the picker of legal new parents for the selected agent — every
+// node that isn't the mover, its descendant, or dead — plus root.
+func (m *Model) openMove() {
+	sel := m.selected()
+	if sel == nil || m.live == nil {
+		return
+	}
+	row, ok := m.nodeRowByName(sel.ID)
+	if !ok {
+		return
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		m.flash = "move unavailable: " + err.Error()
+		return
+	}
+	m.moveTargets = lifecycle.MoveTargets(nodes, row.NodeID)
+	m.moveCursor = 0
+	m.mode = modeMove
 }
 
 // openRename opens the rename field for the selected agent, pre-filled with its

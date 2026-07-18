@@ -43,6 +43,10 @@ type Model struct {
 	confirm     *confirmState
 	adoptCursor int // selection index within the unmanaged-peer adopt picker
 
+	// Move picker: candidate new parents for the selected node (index 0 is root).
+	moveCursor  int
+	moveTargets []store.Node
+
 	// Two-stage hire: after the name is entered, a role picker opens. These
 	// hold the pending name and the picker's selection over [default, ...roles].
 	pendingHireName string
@@ -252,6 +256,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = modeHelp
 		case "R":
 			m.openRename()
+		case "r":
+			m.openMove()
 		}
 	}
 	return m, nil
@@ -338,6 +344,31 @@ func (m Model) renderHireRole() string {
 	return b.String()
 }
 
+// renderMove draws the new-parent picker: root at the top, then every legal
+// target (self, descendants, and dead nodes are already excluded).
+func (m Model) renderMove() string {
+	sel := m.selected()
+	name := ""
+	if sel != nil {
+		name = sel.ID
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("  move %q under — ↑↓ select · ⏎ move · esc cancel\n", name))
+	marker := "   "
+	if m.moveCursor == 0 {
+		marker = " ▸ "
+	}
+	b.WriteString(marker + "(root)\n")
+	for i, t := range m.moveTargets {
+		mk := "   "
+		if m.moveCursor == i+1 {
+			mk = " ▸ "
+		}
+		b.WriteString(mk + t.Name + "\n")
+	}
+	return b.String()
+}
+
 func (m Model) selected() *layout.Node {
 	if m.cursor < 0 || m.cursor >= len(m.flat) {
 		return nil
@@ -402,6 +433,8 @@ func (m Model) View() string {
 		b.WriteString("\n" + m.renderHireRole())
 	case modeHelp:
 		b.WriteString("\n" + m.renderHelp())
+	case modeMove:
+		b.WriteString("\n" + m.renderMove())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
