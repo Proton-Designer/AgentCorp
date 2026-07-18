@@ -50,11 +50,22 @@ func TestStyledRenderColorsByStatus(t *testing.T) {
 	}
 }
 
-// Styled render adds colour AND a per-card status glyph over identical
-// geometry: stripping the ANSI and normalizing the status LED back to a border
-// dash must reproduce the plain render exactly. This proves the styled path
-// only overlays — same card positions and line widths, never a layout change.
-func TestStyledStripsToPlainGeometry(t *testing.T) {
+// Styled render adds colour AND a per-card status glyph over identical RUNE
+// positions: strip the ANSI, map the status LED back to a border dash, and the
+// result must reproduce the plain render exactly. That proves the styled path
+// only overlays and never moves a rune.
+//
+// LOAD-BEARING LIMITATION (flagged in review by the terminal-MCP team): this
+// verifies rune POSITION, NOT terminal DISPLAY WIDTH. The normalization
+// deliberately erases ● ○ × ◌ before comparing — which are the exact glyphs
+// whose width is in question. ● ○ × are East-Asian-Ambiguous (UCD): a terminal
+// may render them at 1 OR 2 cells, and this grid assumes 1 (rune count). If a
+// terminal commits 2, the whole card border shifts — and NO Go unit test can
+// catch that, because Go cannot know a terminal's display width. Confirming it
+// requires driving a real terminal (precisely the gap the terminal-automation
+// MCP exists to close). So: this test proves the overlay is positionally clean;
+// it CANNOT and does not certify the render is visually aligned. See UI-7.
+func TestStyledOverlaysWithoutMovingRunes(t *testing.T) {
 	old := colorEnabled
 	colorEnabled = true
 	defer func() { colorEnabled = old }()
@@ -62,11 +73,33 @@ func TestStyledStripsToPlainGeometry(t *testing.T) {
 	plain := Render(twoNodeTree(), 80)
 	styled := RenderStyled(twoNodeTree(), 80, func(string) vitals.Status { return vitals.StatusQuiet })
 
-	// The status glyph occupies one existing top-border cell (╭●───); map it
-	// back to '─' to compare pure geometry.
+	// Map the status LED back to a border dash. NOTE: this erases the very
+	// glyphs whose display width is unverifiable here — a rune-position check,
+	// not a display-width check.
 	normalized := strings.NewReplacer("○", "─", "●", "─", "×", "─", "◌", "─").Replace(stripANSI(styled))
 	if normalized != plain {
-		t.Fatalf("styled geometry diverged from plain:\nplain:\n%q\nnormalized:\n%q", plain, normalized)
+		t.Fatalf("styled rune-geometry diverged from plain:\nplain:\n%q\nnormalized:\n%q", plain, normalized)
+	}
+}
+
+// statusGlyphWidthRisk pins the honest fact that the fixed-grid status LEDs are
+// an unverified display-width risk, so the assumption is loud in the suite
+// rather than buried. ◌ is spec-Neutral (safe control); ● ○ × are
+// East-Asian-Ambiguous and can render 2 cells wide on some terminals — which no
+// unit test here can detect.
+func TestStatusGlyphsCarryDocumentedWidthRisk(t *testing.T) {
+	ambiguous := map[rune]bool{'●': true, '○': true, '×': true}
+	for _, st := range []vitals.Status{vitals.StatusActive, vitals.StatusQuiet, vitals.StatusDead, vitals.StatusPending} {
+		g := statusGlyph(st)
+		if g == 0 {
+			t.Fatalf("status %q lost its glyph", st)
+		}
+		// ◌ (pending) is Neutral and safe; the rest are ambiguous-width risks.
+		// This assertion exists to fail loudly if someone swaps in a new glyph
+		// without re-checking its width class.
+		if g != '◌' && !ambiguous[g] {
+			t.Fatalf("status glyph %q for %q is neither the safe control ◌ nor a known ambiguous LED — re-verify its display-width class before shipping it in a fixed grid", string(g), st)
+		}
 	}
 }
 
