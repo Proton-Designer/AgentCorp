@@ -308,6 +308,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.doExport()
 		case "z":
 			return m, m.submitRevive()
+		case "Z":
+			return m, m.submitReviveAll()
 		}
 	}
 	return m, nil

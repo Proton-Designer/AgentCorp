@@ -35,3 +35,26 @@ func TestReviveDeadNoSessionGuidesToDeleteOrAdopt(t *testing.T) {
 		t.Fatalf("expected delete/adopt guidance, got %q", msg.text)
 	}
 }
+
+// shift-Z with no dead agents says so.
+func TestReviveAllNoDead(t *testing.T) {
+	m, _ := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "ceo", Role: "lead", Workdir: "/t", SpawnMode: "tmux-window", State: "alive", PeerID: "p", CreatedAt: "1"},
+	)
+	msg, ok := m.submitReviveAll()().(actionResultMsg)
+	if !ok || !strings.Contains(msg.text, "no dead agents") {
+		t.Fatalf("expected 'no dead agents', got %+v", msg)
+	}
+}
+
+// shift-Z when all dead agents lack a resumable session points to fire/adopt.
+func TestReviveAllNoneRevivable(t *testing.T) {
+	m, _ := liveModelWith(t,
+		store.Node{NodeID: "1", Name: "ghost1", Role: "agent", Workdir: "/t", SpawnMode: "tmux-window", State: "dead", CreatedAt: "1", DiedAt: "2026-07-18T06:00:00Z"},
+		store.Node{NodeID: "2", Name: "ghost2", Role: "agent", ParentID: "1", Workdir: "/t", SpawnMode: "tmux-window", State: "dead", CreatedAt: "2", DiedAt: "2026-07-18T06:00:00Z"},
+	)
+	msg, ok := m.submitReviveAll()().(actionResultMsg)
+	if !ok || !strings.Contains(msg.text, "no revivable") || !strings.Contains(msg.text, "2 have no resumable session") {
+		t.Fatalf("expected guidance naming 2 unrevivable, got %+v", msg)
+	}
+}

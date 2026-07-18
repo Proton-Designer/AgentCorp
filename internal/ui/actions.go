@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	gosync "sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -313,6 +314,89 @@ func (m Model) submitRevive() tea.Cmd {
 			return actionResultMsg{text: fmt.Sprintf("reviving %q — reconnecting when its session registers", row.Name)}
 		}
 		return actionResultMsg{text: fmt.Sprintf("revived %q (peer %s)", row.Name, res.PeerID)}
+	}
+}
+
+// submitReviveAll revives every dead agent that still has a resumable session,
+// concurrently — so a whole company can come back from a restart in one press
+// instead of node-by-node. Dead agents whose memory is gone (no session, or the
+// transcript is missing) are counted and reported, not silently skipped. Each
+// revives independently: one failing never blocks the others.
+func (m Model) submitReviveAll() tea.Cmd {
+	if m.live == nil {
+		return flash("revive unavailable: no live session")
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return flash("revive all failed: %v", err)
+	}
+	home, _ := os.UserHomeDir()
+	var revivable []store.Node
+	noSession := 0
+	for _, n := range nodes {
+		if n.State != "dead" {
+			continue
+		}
+		if n.SessionID != "" && resume.Exists(home, n.Workdir, n.SessionID) {
+			revivable = append(revivable, n)
+		} else {
+			noSession++
+		}
+	}
+	if len(revivable) == 0 {
+		if noSession > 0 {
+			return flash("no revivable dead agents — %d have no resumable session (fire or adopt them)", noSession)
+		}
+		return flash("no dead agents to revive")
+	}
+	if m.live.hireFlow == nil {
+		return flash("revive unavailable: hire flow not wired")
+	}
+	flow := m.live.hireFlow
+	return func() tea.Msg {
+		deadline := flow.BindTimeout + 60*time.Second
+		if deadline < 90*time.Second {
+			deadline = 90 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		defer cancel()
+
+		var wg gosync.WaitGroup
+		var mu gosync.Mutex
+		revived, pending, failed := 0, 0, 0
+		for _, n := range revivable {
+			wg.Add(1)
+			go func(node store.Node) {
+				defer wg.Done()
+				res, err := flow.Revive(ctx, node)
+				mu.Lock()
+				defer mu.Unlock()
+				switch {
+				case err != nil:
+					failed++
+				case res.Pending:
+					pending++
+				default:
+					revived++
+				}
+			}(n)
+		}
+		wg.Wait()
+
+		parts := []string{}
+		if revived > 0 {
+			parts = append(parts, fmt.Sprintf("%d revived", revived))
+		}
+		if pending > 0 {
+			parts = append(parts, fmt.Sprintf("%d reconnecting", pending))
+		}
+		if failed > 0 {
+			parts = append(parts, fmt.Sprintf("%d failed", failed))
+		}
+		if noSession > 0 {
+			parts = append(parts, fmt.Sprintf("%d had no session", noSession))
+		}
+		return actionResultMsg{text: "revive all — " + strings.Join(parts, ", ")}
 	}
 }
 
