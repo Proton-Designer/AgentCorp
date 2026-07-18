@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/Proton-Designer/AgentCorp/internal/hire"
 	"github.com/Proton-Designer/AgentCorp/internal/lifecycle"
 	"github.com/Proton-Designer/AgentCorp/internal/msg"
+	"github.com/Proton-Designer/AgentCorp/internal/snapshot"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
@@ -416,6 +418,41 @@ func (m Model) doDisband() tea.Cmd {
 			_ = st.DeleteNode(c.NodeID)
 		}
 		return actionResultMsg{text: fmt.Sprintf("disbanded %q: %d session(s) terminated", root.Name, len(casualties))}
+	}
+}
+
+// doExport writes a JSON + Markdown snapshot of the org into the launch
+// directory and flashes the path. A durable, shareable record of the company
+// at a moment — the JSON for tooling, the Markdown tree for humans.
+func (m Model) doExport() tea.Cmd {
+	if m.live == nil {
+		return flash("export unavailable: no live session")
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return flash("export failed: %v", err)
+	}
+	company := m.live.company.Name
+	dir := m.live.hireWorkdir
+	if dir == "" {
+		dir = "."
+	}
+	now := time.Now()
+	stamp := now.UTC().Format("20060102T150405")
+	snap := snapshot.Build(company, now.UTC().Format(time.RFC3339), nodes)
+	return func() tea.Msg {
+		jsonData, err := snap.JSON()
+		if err != nil {
+			return actionResultMsg{text: fmt.Sprintf("export failed: %v", err)}
+		}
+		base := filepath.Join(dir, "agentcorp-snapshot-"+stamp)
+		if err := os.WriteFile(base+".json", jsonData, 0o644); err != nil {
+			return actionResultMsg{text: fmt.Sprintf("export failed: %v", err)}
+		}
+		if err := os.WriteFile(base+".md", []byte(snap.Markdown()), 0o644); err != nil {
+			return actionResultMsg{text: fmt.Sprintf("export wrote JSON but not Markdown: %v", err)}
+		}
+		return actionResultMsg{text: "exported → " + base + ".json / .md"}
 	}
 }
 

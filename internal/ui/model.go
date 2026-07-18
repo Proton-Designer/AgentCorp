@@ -265,6 +265,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.feedOffset = 0
 				m.mode = modeFeed
 			}
+		case "e":
+			return m, m.doExport()
 		}
 	}
 	return m, nil
