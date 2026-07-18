@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -247,6 +248,88 @@ func (m Model) doDisband() tea.Cmd {
 		}
 		return actionResultMsg{text: fmt.Sprintf("disbanded %q: %d session(s) terminated", root.Name, len(casualties))}
 	}
+}
+
+// doAdopt turns the selected unmanaged peer into a node: a live, bound row we
+// didn't spawn. spawn_ref/bind_tty stay empty (we own no pane for it), so the
+// sync layer's broker-signal-only contract governs its life — Decide already
+// handles spawn_ref=="" correctly. Adoption IS the binding, by operator
+// assertion rather than a tty match.
+func (m Model) doAdopt() tea.Cmd {
+	if m.live == nil || m.adoptCursor < 0 || m.adoptCursor >= len(m.live.unmanaged) {
+		return flash("adopt cancelled")
+	}
+	peer := m.live.unmanaged[m.adoptCursor]
+
+	// Re-check the peer is still live at confirm time, not at selection time —
+	// never adopt a corpse. The list can be a tick stale.
+	live := false
+	for _, p := range m.live.peers {
+		if p.ID == peer.ID {
+			live = true
+			break
+		}
+	}
+	if !live {
+		return flash("cannot adopt %s: that agent is gone", shortPeerID(peer.ID))
+	}
+
+	// Adopt under the selected node if it's a valid living parent; else at root.
+	parentID := ""
+	if sel := m.selected(); sel != nil {
+		if row, ok := m.nodeRowByName(sel.ID); ok && row.State != "dead" {
+			parentID = row.NodeID
+		}
+	}
+
+	name := adoptName(peer)
+	node := store.Node{
+		NodeID:    "a-" + time.Now().UTC().Format("20060102T150405.000000"),
+		PeerID:    peer.ID,
+		Name:      name,
+		Role:      "adopted",
+		ParentID:  parentID,
+		Workdir:   peer.CWD,
+		SpawnMode: "adopted",
+		State:     "alive",
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	st := m.live.st
+	return func() tea.Msg {
+		if err := st.InsertNode(node); err != nil {
+			// peer_id is UNIQUE: a double-adopt fails loudly here rather than
+			// silently duplicating the peer into two nodes.
+			return actionResultMsg{text: fmt.Sprintf("adopt failed: %v", err)}
+		}
+		return actionResultMsg{text: fmt.Sprintf("adopted %q", name)}
+	}
+}
+
+// adoptName derives a readable, collision-resistant name for an adopted peer:
+// the working-directory basename (what the session is about) plus a short slice
+// of the peer id (unique), clipped to the card's label width.
+func adoptName(p broker.Peer) string {
+	base := filepath.Base(p.CWD)
+	if base == "." || base == "/" || base == "" {
+		base = "peer"
+	}
+	id := p.ID
+	if len(id) > 4 {
+		id = id[:4]
+	}
+	name := base + "-" + id
+	if r := []rune(name); len(r) > cardW-2 {
+		name = string(r[:cardW-2])
+	}
+	return name
+}
+
+// shortPeerID clips a peer id for a status message.
+func shortPeerID(id string) string {
+	if len(id) > 6 {
+		return id[:6]
+	}
+	return id
 }
 
 func nodeByNodeID(nodes []store.Node, id string) (store.Node, bool) {

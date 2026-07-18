@@ -63,6 +63,10 @@ type liveState struct {
 	// means unscoped. It deliberately does NOT gate liveness.
 	companyRoot string
 
+	// unmanaged is the current in-company set of live peers with no node — the
+	// candidates the adopt picker offers. Refreshed every tick.
+	unmanaged []broker.Peer
+
 	// Last known-good substrate readings. Kept across a failed poll so the
 	// HUD can show the last truth rather than zeros — zeros would read as
 	// "the company is empty", which is a different and false claim.
@@ -154,8 +158,9 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	// above — correct, and immune to a scoping blip. Only the unmanaged count
 	// is scoped to the company, so the HUD doesn't count every other company's
 	// sessions as adoptable here. InCompany with an empty root is a no-op.
-	m.live.summary.Unmanaged = len(broker.Reconcile(nodes,
-		InCompany(m.live.companyRoot, m.live.peers)).Unmanaged)
+	m.live.unmanaged = broker.Reconcile(nodes,
+		InCompany(m.live.companyRoot, m.live.peers)).Unmanaged
+	m.live.summary.Unmanaged = len(m.live.unmanaged)
 	if m.live.started.IsZero() {
 		m.live.started = now
 	}

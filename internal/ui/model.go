@@ -40,6 +40,7 @@ type Model struct {
 	searchInput input
 	filter      string
 	confirm     *confirmState
+	adoptCursor int // selection index within the unmanaged-peer adopt picker
 
 	// flash is a transient one-line status (last action's outcome). Cleared
 	// on the next keypress so it never lingers as stale truth.
@@ -230,6 +231,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openFireConfirm()
 		case "D":
 			m.openDisbandConfirm()
+		case "a":
+			m.openAdopt()
 		}
 	}
 	return m, nil
@@ -263,6 +266,35 @@ func (m Model) statusMap() map[string]vitals.Status {
 		out[n.Name] = vitals.NodeStatus(n, m.live.peers, m.live.msgs, now, ActivityWindow)
 	}
 	return out
+}
+
+// renderAdopt draws the unmanaged-peer picker: each candidate's derived name,
+// working directory, and self-reported summary, with the cursor on the current
+// selection and the prospective parent named in the header.
+func (m Model) renderAdopt() string {
+	if m.live == nil {
+		return ""
+	}
+	parent := "(root)"
+	if sel := m.selected(); sel != nil {
+		parent = sel.ID
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("  adopt under %s — ↑↓ select · ⏎ adopt · esc cancel\n", parent))
+	for i, p := range m.live.unmanaged {
+		marker := "   "
+		if i == m.adoptCursor {
+			marker = " ▸ "
+		}
+		line := fmt.Sprintf("%s%-12s  %s", marker, adoptName(p), truncate(p.CWD, 44))
+		if p.Summary != "" {
+			if room := m.width - len([]rune(line)) - 4; room > 1 {
+				line += "  " + truncate(p.Summary, room)
+			}
+		}
+		b.WriteString(strings.TrimRight(line, " ") + "\n")
+	}
+	return b.String()
 }
 
 func (m Model) selected() *layout.Node {
@@ -321,6 +353,8 @@ func (m Model) View() string {
 	case modeHire, modeMessage, modeSearch:
 		b.WriteString("\n  " + m.activeInput().prompt + " " + m.activeInput().value + "▏\n")
 		b.WriteString("  ⏎ confirm · esc cancel\n")
+	case modeAdopt:
+		b.WriteString("\n" + m.renderAdopt())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
@@ -328,7 +362,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ↑↓ move · space fold · h hire · m msg · x fire · shift-D disband · / find · q quit\n")
+		b.WriteString("  ↑↓ move · space fold · h hire · a adopt · m msg · x fire · shift-D disband · / find · q quit\n")
 	}
 	return b.String()
 }

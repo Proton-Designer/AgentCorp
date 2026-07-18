@@ -19,6 +19,7 @@ const (
 	modeMessage      // composing a message to the selected agent
 	modeSearch       // filtering the tree
 	modeConfirm      // a fire/disband confirmation is up
+	modeAdopt        // picking an unmanaged peer to adopt into the chart
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -94,6 +95,25 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		m.applyFilter()
 		return m, nil, true
 
+	case modeAdopt:
+		switch key {
+		case "esc":
+			m.mode = modeNormal
+		case "up", "k":
+			if m.adoptCursor > 0 {
+				m.adoptCursor--
+			}
+		case "down", "j":
+			if m.live != nil && m.adoptCursor < len(m.live.unmanaged)-1 {
+				m.adoptCursor++
+			}
+		case "enter":
+			cmd := m.doAdopt()
+			m.mode = modeNormal
+			return m, cmd, true
+		}
+		return m, nil, true
+
 	case modeConfirm:
 		switch key {
 		case "esc":
@@ -136,6 +156,17 @@ func (m *Model) openMessage() {
 func (m *Model) openSearch() {
 	m.searchInput = input{prompt: "/"}
 	m.mode = modeSearch
+}
+
+// openAdopt opens the picker for unmanaged peers — live sessions on the machine
+// (in this company) that AgentCorp didn't spawn and doesn't yet track.
+func (m *Model) openAdopt() {
+	if m.live == nil || len(m.live.unmanaged) == 0 {
+		m.flash = "no unmanaged agents to adopt"
+		return
+	}
+	m.adoptCursor = 0
+	m.mode = modeAdopt
 }
 
 // applyFilter dims nodes that don't match the search. A non-matching node is
