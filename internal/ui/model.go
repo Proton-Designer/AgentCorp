@@ -38,6 +38,7 @@ type Model struct {
 	hireInput   input
 	msgInput    input
 	searchInput input
+	renameInput input
 	filter      string
 	confirm     *confirmState
 	adoptCursor int // selection index within the unmanaged-peer adopt picker
@@ -249,6 +250,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "?":
 			m.mode = modeHelp
+		case "R":
+			m.openRename()
 		}
 	}
 	return m, nil
@@ -388,7 +391,7 @@ func (m Model) View() string {
 		if m.confirm != nil {
 			b.WriteString("\n" + renderConfirm(m.confirm, m.width))
 		}
-	case modeHire, modeMessage, modeSearch, modeBroadcast:
+	case modeHire, modeMessage, modeSearch, modeBroadcast, modeRename:
 		b.WriteString("\n  " + m.activeInput().prompt + " " + m.activeInput().value + "▏\n")
 		b.WriteString("  ⏎ confirm · esc cancel\n")
 	case modeAdopt:
@@ -420,6 +423,8 @@ func (m Model) activeInput() input {
 		return m.msgInput
 	case modeSearch:
 		return m.searchInput
+	case modeRename:
+		return m.renameInput
 	}
 	return input{}
 }

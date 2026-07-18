@@ -156,6 +156,47 @@ func (m Model) submitBroadcast(text string) tea.Cmd {
 	}
 }
 
+// submitRename renames the selected agent, rejecting a blank name or one
+// already used by another live node — names are how the UI identifies nodes,
+// so a duplicate would make actions ambiguous.
+func (m Model) submitRename(newName string) tea.Cmd {
+	if m.live == nil {
+		return flash("rename unavailable: no live session")
+	}
+	sel := m.selected()
+	if sel == nil {
+		return flash("rename cancelled")
+	}
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return flash("rename cancelled: empty name")
+	}
+	row, ok := m.nodeRowByName(sel.ID)
+	if !ok {
+		return flash("rename cancelled")
+	}
+	if newName == row.Name {
+		return flash("rename cancelled: unchanged")
+	}
+	nodes, err := m.live.st.ListNodes()
+	if err != nil {
+		return flash("rename failed: %v", err)
+	}
+	for _, n := range nodes {
+		if n.NodeID != row.NodeID && n.Name == newName && n.State != "dead" {
+			return flash("name %q is already taken", newName)
+		}
+	}
+	st := m.live.st
+	id, old := row.NodeID, row.Name
+	return func() tea.Msg {
+		if err := st.SetName(id, newName); err != nil {
+			return actionResultMsg{text: fmt.Sprintf("rename failed: %v", err)}
+		}
+		return actionResultMsg{text: fmt.Sprintf("renamed %q → %q", old, newName)}
+	}
+}
+
 // submitMessage sends an operator message to the selected agent.
 func (m Model) submitMessage(text string) tea.Cmd {
 	if m.live == nil {

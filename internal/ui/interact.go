@@ -24,6 +24,7 @@ const (
 	modeHireRole       // second hire stage: picking a role template
 	modeBroadcast      // composing a message to the selected node's whole subtree
 	modeHelp           // the keybind + colour-legend overlay
+	modeRename         // editing the selected agent's name
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -121,6 +122,19 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		}
 		if done {
 			cmd := m.submitBroadcast(m.msgInput.value)
+			m.mode = modeNormal
+			return m, cmd, true
+		}
+		return m, nil, true
+
+	case modeRename:
+		done, cancel := m.renameInput.handle(key)
+		if cancel {
+			m.mode = modeNormal
+			return m, nil, true
+		}
+		if done {
+			cmd := m.submitRename(m.renameInput.value)
 			m.mode = modeNormal
 			return m, cmd, true
 		}
@@ -267,6 +281,17 @@ func (m *Model) openInspect() {
 		return
 	}
 	m.mode = modeInspect
+}
+
+// openRename opens the rename field for the selected agent, pre-filled with its
+// current name so the operator edits rather than retypes.
+func (m *Model) openRename() {
+	sel := m.selected()
+	if sel == nil {
+		return
+	}
+	m.renameInput = input{prompt: "rename " + sel.ID + " to:", value: sel.ID}
+	m.mode = modeRename
 }
 
 // openBroadcast composes a message to every reachable agent in the selected

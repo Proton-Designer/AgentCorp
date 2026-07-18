@@ -83,6 +83,14 @@ func (s *Store) Tombstone(nodeID, when string) error {
 	return err
 }
 
+// SetName renames a node. Names are how the UI layer identifies nodes, so the
+// caller is responsible for rejecting a name that collides with another live
+// node before calling this.
+func (s *Store) SetName(nodeID, name string) error {
+	_, err := s.db.Exec(`UPDATE nodes SET name = ? WHERE node_id = ?`, name, nodeID)
+	return err
+}
+
 // DeleteNode removes a node row outright.
 //
 // Distinct from Tombstone on purpose. Tombstone is for a death AgentCorp merely
