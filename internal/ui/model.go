@@ -188,6 +188,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		// Wipe on resize. Without this, resizing a bare (non-tmux) terminal —
+		// especially restoring it from minimized — can strand the previous
+		// frame above the new one, stacking duplicate UIs. tmux hides this by
+		// owning the redraw; bare Bubble Tea needs the explicit clear.
+		return m, tea.ClearScreen
 
 	case tickWake:
 		// Timer fired: run a poll and re-arm. Re-arming here rather than
