@@ -45,7 +45,7 @@ func (m Model) nodeRowByName(name string) (store.Node, bool) {
 
 // submitHire runs the full hire flow in the background. It returns a command so
 // the spawn + gate-clearing + bind (potentially seconds) never blocks the UI.
-func (m Model) submitHire(name string) tea.Cmd {
+func (m Model) submitHire(name, roleTemplate string) tea.Cmd {
 	if m.live == nil || m.live.hireFlow == nil {
 		return flash("hire unavailable: no live session")
 	}
@@ -74,11 +74,12 @@ func (m Model) submitHire(name string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), hireDeadline)
 		defer cancel()
 		res, err := flow.Run(ctx, hire.Request{
-			Name:     name,
-			Role:     "agent",
-			Workdir:  workdir,
-			ParentID: parentID,
-			Prompt:   "You are a AgentCorp agent named " + name + ".",
+			Name:         name,
+			Role:         "agent",
+			Workdir:      workdir,
+			ParentID:     parentID,
+			Prompt:       "You are a AgentCorp agent named " + name + ".",
+			RoleTemplate: roleTemplate, // "" = default; else resolves the stored role
 		})
 		if err != nil {
 			return actionResultMsg{text: fmt.Sprintf("hire %q failed: %v", name, err)}

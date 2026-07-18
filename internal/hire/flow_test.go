@@ -18,10 +18,18 @@ type fakeAdapter struct {
 	handle spawn.Handle
 	err    error
 	specs  []spawn.Spec
+	// lastPromptContent is the prompt file's content read at Launch time (the
+	// file is cleaned up after Run, so tests can't read it afterward).
+	lastPromptContent string
 }
 
 func (f *fakeAdapter) Launch(ctx context.Context, s spawn.Spec) (spawn.Handle, error) {
 	f.specs = append(f.specs, s)
+	if s.PromptFile != "" {
+		if b, err := os.ReadFile(s.PromptFile); err == nil {
+			f.lastPromptContent = string(b)
+		}
+	}
 	return f.handle, f.err
 }
 
@@ -240,4 +248,54 @@ func TestRunValidatesBeforeAnySideEffect(t *testing.T) {
 	if len(a.specs) != 0 {
 		t.Fatalf("adapter launched %d times for invalid requests", len(a.specs))
 	}
+}
+
+// A hire with a RoleTemplate resolves the stored role's prompt and name, and
+// the spawned prompt carries the role's behavior text (via the prompt file).
+func TestRunResolvesRoleTemplate(t *testing.T) {
+	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys1"}}
+	f, st := testFlow(t, a, func() ([]broker.Peer, error) {
+		return []broker.Peer{{ID: "p1", TTY: "ttys1"}}, nil
+	})
+	if err := st.UpsertRole(store.Role{Name: "researcher", Glyph: "◆", Prompt: "You specialize in research."}); err != nil {
+		t.Fatal(err)
+	}
+
+	r := req(t)
+	r.RoleTemplate = "researcher"
+	r.Prompt = "" // template should supply it
+	res, err := f.Run(context.Background(), r)
+	if err != nil {
+		t.Fatalf("hire failed: %v", err)
+	}
+	n := nodeByID(t, st, res.NodeID)
+	if n.Role != "researcher" {
+		t.Fatalf("node role = %q, want researcher (from template)", n.Role)
+	}
+	// The prompt file the adapter received must contain the role behavior text.
+	if !strings.Contains(a.lastPromptContent, "specialize in research") {
+		t.Fatalf("spawned prompt missing role text: %q", a.lastPromptContent)
+	}
+	if !strings.Contains(a.lastPromptContent, "named backend-dev") {
+		t.Fatalf("spawned prompt missing identity line: %q", a.lastPromptContent)
+	}
+}
+
+// An unknown template must not silently blank the system prompt — the caller's
+// Prompt survives.
+func TestRunUnknownTemplateKeepsCallerPrompt(t *testing.T) {
+	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys1"}}
+	f, st := testFlow(t, a, func() ([]broker.Peer, error) {
+		return []broker.Peer{{ID: "p1", TTY: "ttys1"}}, nil
+	})
+	r := req(t)
+	r.RoleTemplate = "does-not-exist"
+	r.Prompt = "You are a backend engineer."
+	if _, err := f.Run(context.Background(), r); err != nil {
+		t.Fatalf("hire failed: %v", err)
+	}
+	if !strings.Contains(a.lastPromptContent, "backend engineer") {
+		t.Fatalf("caller prompt lost on unknown template: %q", a.lastPromptContent)
+	}
+	_ = st
 }

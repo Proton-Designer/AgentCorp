@@ -38,7 +38,14 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schemaSQL); err != nil {
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	// Seed default role archetypes into a fresh store (no-op if roles exist),
+	// so a new company can hire a "researcher"/"engineer"/"reviewer" without
+	// first defining one.
+	if err := s.SeedDefaultRoles(); err != nil {
+		return nil, fmt.Errorf("seed roles: %w", err)
+	}
+	return s, nil
 }
 
 func (s *Store) DB() *sql.DB  { return s.db }

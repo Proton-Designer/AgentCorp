@@ -14,13 +14,14 @@ import (
 type mode int
 
 const (
-	modeNormal  mode = iota
-	modeHire         // entering a name for a new agent
-	modeMessage      // composing a message to the selected agent
-	modeSearch       // filtering the tree
-	modeConfirm      // a fire/disband confirmation is up
-	modeAdopt        // picking an unmanaged peer to adopt into the chart
-	modeInspect      // a detail panel for the selected agent is up
+	modeNormal   mode = iota
+	modeHire          // entering a name for a new agent
+	modeMessage       // composing a message to the selected agent
+	modeSearch        // filtering the tree
+	modeConfirm       // a fire/disband confirmation is up
+	modeAdopt         // picking an unmanaged peer to adopt into the chart
+	modeInspect       // a detail panel for the selected agent is up
+	modeHireRole      // second hire stage: picking a role template
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -62,7 +63,36 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		if done {
-			cmd := m.submitHire(m.hireInput.value)
+			name := strings.TrimSpace(m.hireInput.value)
+			if name == "" {
+				m.mode = modeNormal
+				return m, flash("hire cancelled: no name"), true
+			}
+			// Name entered — advance to the role picker rather than hiring blind.
+			m.pendingHireName = name
+			cmd := m.openHireRole()
+			return m, cmd, true
+		}
+		return m, nil, true
+
+	case modeHireRole:
+		switch key {
+		case "esc":
+			m.mode = modeNormal
+		case "up", "k":
+			if m.roleCursor > 0 {
+				m.roleCursor--
+			}
+		case "down", "j":
+			if m.roleCursor < len(m.roles) { // len(roles) options after the default at 0
+				m.roleCursor++
+			}
+		case "enter":
+			template := ""
+			if m.roleCursor > 0 && m.roleCursor-1 < len(m.roles) {
+				template = m.roles[m.roleCursor-1].Name
+			}
+			cmd := m.submitHire(m.pendingHireName, template)
 			m.mode = modeNormal
 			return m, cmd, true
 		}
@@ -185,6 +215,26 @@ func (m *Model) openAdopt() {
 	}
 	m.adoptCursor = 0
 	m.mode = modeAdopt
+}
+
+// openHireRole loads the role templates and opens the second hire stage,
+// returning nil. If the store has no roles (or can't be read), it hires
+// immediately with the default prompt and returns that command rather than
+// showing an empty picker.
+func (m *Model) openHireRole() tea.Cmd {
+	if m.live == nil || m.live.st == nil {
+		m.mode = modeNormal
+		return m.submitHire(m.pendingHireName, "")
+	}
+	roles, err := m.live.st.ListRoles()
+	if err != nil || len(roles) == 0 {
+		m.mode = modeNormal
+		return m.submitHire(m.pendingHireName, "")
+	}
+	m.roles = roles
+	m.roleCursor = 0
+	m.mode = modeHireRole
+	return nil
 }
 
 // openInspect opens the detail panel for the selected agent.

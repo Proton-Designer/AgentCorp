@@ -28,6 +28,31 @@ type Request struct {
 	ParentID string
 	Brief    string // optional first task
 	Prompt   string // the role's system prompt
+
+	// RoleTemplate, if set, names a stored role whose prompt and glyph the flow
+	// resolves — overriding Role and Prompt. Lets a hire pick "researcher"
+	// instead of re-typing a system prompt every time.
+	RoleTemplate string
+}
+
+// resolveRole applies a role template to a request: sets Role to the template
+// name and composes Prompt as the agent's identity line plus the role's
+// behavior description. A no-op when RoleTemplate is empty; an unknown template
+// is left to the caller's Prompt (never silently blanks the system prompt).
+func (f *Flow) resolveRole(req *Request) error {
+	if req.RoleTemplate == "" {
+		return nil
+	}
+	r, ok, err := f.Store.GetRole(req.RoleTemplate)
+	if err != nil {
+		return fmt.Errorf("resolve role %q: %w", req.RoleTemplate, err)
+	}
+	if !ok {
+		return nil // unknown template — keep whatever Prompt the caller set
+	}
+	req.Role = r.Name
+	req.Prompt = "You are a AgentCorp agent named " + req.Name + ".\n\n" + r.Prompt
+	return nil
 }
 
 // Result reports what happened. NodeID always identifies the row so the caller
@@ -81,6 +106,11 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 	// Fails closed on an unset path: a wiring bug must refuse to spawn, not
 	// spawn unconsented.
 	if err := RequireConsent(f.ConsentPath); err != nil {
+		return Result{}, err
+	}
+	// Resolve a role template (if any) before validation, so Role/Prompt reflect
+	// the chosen archetype for the rest of the flow.
+	if err := f.resolveRole(&req); err != nil {
 		return Result{}, err
 	}
 	if err := validate(req); err != nil {

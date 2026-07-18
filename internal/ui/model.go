@@ -42,6 +42,12 @@ type Model struct {
 	confirm     *confirmState
 	adoptCursor int // selection index within the unmanaged-peer adopt picker
 
+	// Two-stage hire: after the name is entered, a role picker opens. These
+	// hold the pending name and the picker's selection over [default, ...roles].
+	pendingHireName string
+	roleCursor      int
+	roles           []store.Role
+
 	// flash is a transient one-line status (last action's outcome). Cleared
 	// on the next keypress so it never lingers as stale truth.
 	flash string
@@ -299,6 +305,28 @@ func (m Model) renderAdopt() string {
 	return b.String()
 }
 
+// renderHireRole draws the second hire stage: pick a role archetype for the
+// agent being hired. Index 0 is the plain default; the rest are stored roles,
+// each with its glyph and a snippet of its prompt.
+func (m Model) renderHireRole() string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("  role for %q — ↑↓ select · ⏎ hire · esc cancel\n", m.pendingHireName))
+	marker := "   "
+	if m.roleCursor == 0 {
+		marker = " ▸ "
+	}
+	b.WriteString(marker + "· default        a general-purpose agent\n")
+	for i, r := range m.roles {
+		mk := "   "
+		if m.roleCursor == i+1 {
+			mk = " ▸ "
+		}
+		line := fmt.Sprintf("%s%s %-12s %s", mk, r.Glyph, r.Name, truncate(r.Prompt, m.width-24))
+		b.WriteString(strings.TrimRight(line, " ") + "\n")
+	}
+	return b.String()
+}
+
 func (m Model) selected() *layout.Node {
 	if m.cursor < 0 || m.cursor >= len(m.flat) {
 		return nil
@@ -359,6 +387,8 @@ func (m Model) View() string {
 		b.WriteString("\n" + m.renderAdopt())
 	case modeInspect:
 		b.WriteString("\n" + m.renderInspect())
+	case modeHireRole:
+		b.WriteString("\n" + m.renderHireRole())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
