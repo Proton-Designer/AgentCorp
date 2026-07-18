@@ -14,7 +14,7 @@ import (
 // always styConnector; empty cells stay styNone. Both the plain and the styled
 // renderers below share this one builder, so colour can never drift from
 // geometry — the exact same cells are drawn either way.
-func buildGrid(root *layout.Node, styleOf func(id string) cellStyle) (grid [][]rune, styles [][]cellStyle, w, h int) {
+func buildGrid(root *layout.Node, styleOf func(id string) cellStyle, glyphOf func(id string) rune) (grid [][]rune, styles [][]cellStyle, w, h int) {
 	layout.Position(root, hgap, vgap)
 	segs := layout.Connectors(root, vgap)
 
@@ -45,7 +45,7 @@ func buildGrid(root *layout.Node, styleOf func(id string) cellStyle) (grid [][]r
 
 	var cards func(*layout.Node)
 	cards = func(n *layout.Node) {
-		drawCard(put, n, styleOf(n.ID))
+		drawCard(put, n, styleOf(n.ID), glyphOf(n.ID))
 		if n.Collapsed {
 			return
 		}
@@ -68,7 +68,7 @@ func Render(root *layout.Node, width int) string {
 	if root == nil {
 		return ""
 	}
-	grid, _, w, h := buildGrid(root, func(string) cellStyle { return styNone })
+	grid, _, w, h := buildGrid(root, func(string) cellStyle { return styNone }, func(string) rune { return 0 })
 	if w < 1 || h < 1 {
 		return ""
 	}
@@ -100,9 +100,9 @@ func RenderStyled(root *layout.Node, width int, statusOf func(id string) vitals.
 	if !colorEnabled {
 		return Render(root, width)
 	}
-	grid, styles, w, h := buildGrid(root, func(id string) cellStyle {
-		return styleForStatus(statusOf(id))
-	})
+	grid, styles, w, h := buildGrid(root,
+		func(id string) cellStyle { return styleForStatus(statusOf(id)) },
+		func(id string) rune { return statusGlyph(statusOf(id)) })
 	if w < 1 || h < 1 {
 		return ""
 	}
@@ -165,8 +165,11 @@ const (
 )
 
 // drawCard renders a rounded box with the node's label centered inside, every
-// cell painted in style s (styNone for the monochrome path).
-func drawCard(put func(int, int, rune, cellStyle), n *layout.Node, s cellStyle) {
+// cell painted in style s (styNone for the monochrome path). A non-zero glyph
+// is drawn as a status "LED" in the top border just after the corner
+// (╭●──────╮) — border cells only, so it never disturbs the label or the
+// connector attach point at the card's top center.
+func drawCard(put func(int, int, rune, cellStyle), n *layout.Node, s cellStyle, glyph rune) {
 	x, y, w, h := n.X, n.Y, n.W, n.H
 	if w < 2 || h < 2 {
 		return
@@ -184,6 +187,10 @@ func drawCard(put func(int, int, rune, cellStyle), n *layout.Node, s cellStyle) 
 	put(x, y+h-1, '╰', s)
 	put(x+w-1, y+h-1, '╯', s)
 
+	if glyph != 0 && w >= 4 {
+		put(x+1, y, glyph, s)
+	}
+
 	label := []rune(n.ID)
 	if len(label) > w-2 {
 		label = label[:w-2]
@@ -191,6 +198,23 @@ func drawCard(put func(int, int, rune, cellStyle), n *layout.Node, s cellStyle) 
 	start := x + (w-len(label))/2
 	for i, r := range label {
 		put(start+i, y+h/2, r, s)
+	}
+}
+
+// statusGlyph is the per-card status LED. Kept to glyphs that render
+// single-width on the target terminals (macOS Terminal / iTerm); 0 means none.
+func statusGlyph(st vitals.Status) rune {
+	switch st {
+	case vitals.StatusActive:
+		return '●'
+	case vitals.StatusQuiet:
+		return '○'
+	case vitals.StatusDead:
+		return '×'
+	case vitals.StatusPending:
+		return '◌'
+	default:
+		return 0
 	}
 }
 

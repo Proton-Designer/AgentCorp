@@ -50,20 +50,23 @@ func TestStyledRenderColorsByStatus(t *testing.T) {
 	}
 }
 
-// Stripping the ANSI from a styled render must reproduce the plain render
-// exactly: colour is a pure overlay, never a geometry change.
+// Styled render adds colour AND a per-card status glyph over identical
+// geometry: stripping the ANSI and normalizing the status LED back to a border
+// dash must reproduce the plain render exactly. This proves the styled path
+// only overlays — same card positions and line widths, never a layout change.
 func TestStyledStripsToPlainGeometry(t *testing.T) {
 	old := colorEnabled
 	colorEnabled = true
 	defer func() { colorEnabled = old }()
 
-	tree := twoNodeTree()
-	plain := Render(tree, 80)
-	tree2 := twoNodeTree()
-	styled := RenderStyled(tree2, 80, func(string) vitals.Status { return vitals.StatusQuiet })
+	plain := Render(twoNodeTree(), 80)
+	styled := RenderStyled(twoNodeTree(), 80, func(string) vitals.Status { return vitals.StatusQuiet })
 
-	if stripANSI(styled) != plain {
-		t.Fatalf("styled geometry diverged from plain:\nplain:\n%q\nstripped:\n%q", plain, stripANSI(styled))
+	// The status glyph occupies one existing top-border cell (╭●───); map it
+	// back to '─' to compare pure geometry.
+	normalized := strings.NewReplacer("○", "─", "●", "─", "×", "─", "◌", "─").Replace(stripANSI(styled))
+	if normalized != plain {
+		t.Fatalf("styled geometry diverged from plain:\nplain:\n%q\nnormalized:\n%q", plain, normalized)
 	}
 }
 
@@ -97,4 +100,20 @@ func stripANSI(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// Each card carries a status LED glyph in its top border in the styled path.
+func TestStyledRenderHasStatusGlyph(t *testing.T) {
+	old := colorEnabled
+	colorEnabled = true
+	defer func() { colorEnabled = old }()
+
+	status := map[string]vitals.Status{"ceo": vitals.StatusActive, "worker": vitals.StatusDead}
+	out := RenderStyled(twoNodeTree(), 80, func(id string) vitals.Status { return status[id] })
+	if !strings.Contains(out, "●") {
+		t.Fatal("active card missing its ● status LED")
+	}
+	if !strings.Contains(out, "×") {
+		t.Fatal("dead card missing its × status LED")
+	}
 }
