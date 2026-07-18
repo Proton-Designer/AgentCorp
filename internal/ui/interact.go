@@ -27,6 +27,7 @@ const (
 	modeHelp           // the keybind + colour-legend overlay
 	modeRename         // editing the selected agent's name
 	modeMove           // picking a new parent for the selected agent
+	modeFeed           // the scrollable org-wide activity feed
 )
 
 // input is a minimal single-line text field. Bubble Tea has a textinput
@@ -181,6 +182,19 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 		switch key {
 		case "esc", "?", "enter", "q":
 			m.mode = modeNormal
+		}
+		return m, nil, true
+
+	case modeFeed:
+		switch key {
+		case "esc", "l", "q":
+			m.mode = modeNormal
+		case "down", "j":
+			m.feedOffset++ // clamped in the renderer against the message count
+		case "up", "k":
+			if m.feedOffset > 0 {
+				m.feedOffset--
+			}
 		}
 		return m, nil, true
 

@@ -17,6 +17,7 @@ var helpKeys = [][2]string{
 	{"x", "fire the selected agent"},
 	{"shift-D", "disband a subtree"},
 	{"/", "find by name / role / status"},
+	{"l", "activity feed (org message log)"},
 	{"t", "cycle colour theme"},
 	{"?", "this help"},
 	{"q", "quit"},

@@ -47,6 +47,8 @@ type Model struct {
 	moveCursor  int
 	moveTargets []store.Node
 
+	feedOffset int // scroll position in the activity feed
+
 	// Two-stage hire: after the name is entered, a role picker opens. These
 	// hold the pending name and the picker's selection over [default, ...roles].
 	pendingHireName string
@@ -258,6 +260,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openRename()
 		case "r":
 			m.openMove()
+		case "l":
+			if m.live != nil {
+				m.feedOffset = 0
+				m.mode = modeFeed
+			}
 		}
 	}
 	return m, nil
@@ -435,6 +442,8 @@ func (m Model) View() string {
 		b.WriteString("\n" + m.renderHelp())
 	case modeMove:
 		b.WriteString("\n" + m.renderMove())
+	case modeFeed:
+		b.WriteString("\n" + m.renderFeed())
 	default:
 		if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
