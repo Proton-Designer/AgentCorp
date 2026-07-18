@@ -37,22 +37,24 @@ type Request struct {
 
 // resolveRole applies a role template to a request: sets Role to the template
 // name and composes Prompt as the agent's identity line plus the role's
-// behavior description. A no-op when RoleTemplate is empty; an unknown template
-// is left to the caller's Prompt (never silently blanks the system prompt).
-func (f *Flow) resolveRole(req *Request) error {
+// behavior description. Returns fellBack=true when a template was named but no
+// longer exists (e.g. deleted between the picker and the hire) — the caller's
+// Prompt is kept (never silently blanked), but the outcome is surfaced rather
+// than passed off as a normal hire.
+func (f *Flow) resolveRole(req *Request) (fellBack bool, err error) {
 	if req.RoleTemplate == "" {
-		return nil
+		return false, nil
 	}
 	r, ok, err := f.Store.GetRole(req.RoleTemplate)
 	if err != nil {
-		return fmt.Errorf("resolve role %q: %w", req.RoleTemplate, err)
+		return false, fmt.Errorf("resolve role %q: %w", req.RoleTemplate, err)
 	}
 	if !ok {
-		return nil // unknown template — keep whatever Prompt the caller set
+		return true, nil // unknown template — keep the caller's Prompt, but say so
 	}
 	req.Role = r.Name
 	req.Prompt = "You are a AgentCorp agent named " + req.Name + ".\n\n" + r.Prompt
-	return nil
+	return false, nil
 }
 
 // Result reports what happened. NodeID always identifies the row so the caller
@@ -63,6 +65,12 @@ type Result struct {
 	NodeID  string
 	PeerID  string
 	Pending bool
+
+	// RoleMissing names a role template that was requested but not found, so the
+	// hire fell back to the default prompt. Empty on a normal hire. The UI
+	// surfaces it instead of reporting a plain success for an agent that silently
+	// lacks the role behavior the operator picked.
+	RoleMissing string
 }
 
 // peerLister is injectable so the flow is testable without a live broker.
@@ -110,7 +118,8 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 	}
 	// Resolve a role template (if any) before validation, so Role/Prompt reflect
 	// the chosen archetype for the rest of the flow.
-	if err := f.resolveRole(&req); err != nil {
+	fellBack, err := f.resolveRole(&req)
+	if err != nil {
 		return Result{}, err
 	}
 	if err := validate(req); err != nil {
@@ -119,6 +128,9 @@ func (f *Flow) Run(ctx context.Context, req Request) (Result, error) {
 
 	nodeID := f.IDFunc()
 	res := Result{NodeID: nodeID}
+	if fellBack {
+		res.RoleMissing = req.RoleTemplate
+	}
 
 	// 1. Prompt to a file. Never onto a command line — that's the injection
 	//    surface spawn/ exists to avoid, and briefs are operator free text.

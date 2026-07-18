@@ -299,3 +299,21 @@ func TestRunUnknownTemplateKeepsCallerPrompt(t *testing.T) {
 	}
 	_ = st
 }
+
+// A requested role template that no longer exists surfaces as RoleMissing (not
+// a silent success), while still hiring with the caller's default prompt.
+func TestRunSurfacesMissingRoleTemplate(t *testing.T) {
+	a := &fakeAdapter{handle: spawn.Handle{SpawnRef: "%1", TTY: "/dev/ttys1"}}
+	f, _ := testFlow(t, a, func() ([]broker.Peer, error) {
+		return []broker.Peer{{ID: "p1", TTY: "ttys1"}}, nil
+	})
+	r := req(t)
+	r.RoleTemplate = "ghost-role" // never created
+	res, err := f.Run(context.Background(), r)
+	if err != nil {
+		t.Fatalf("a missing template must not hard-fail the hire: %v", err)
+	}
+	if res.RoleMissing != "ghost-role" {
+		t.Fatalf("RoleMissing = %q, want ghost-role — the fallback must be surfaced", res.RoleMissing)
+	}
+}

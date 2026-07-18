@@ -84,6 +84,9 @@ func (m Model) submitHire(name, roleTemplate string) tea.Cmd {
 		if err != nil {
 			return actionResultMsg{text: fmt.Sprintf("hire %q failed: %v", name, err)}
 		}
+		if res.RoleMissing != "" {
+			return actionResultMsg{text: fmt.Sprintf("hired %q, but role %q wasn't found — used the default prompt", name, res.RoleMissing)}
+		}
 		if res.Pending {
 			return actionResultMsg{text: fmt.Sprintf("%q spawning — will bind when its session registers", name)}
 		}
@@ -94,21 +97,27 @@ func (m Model) submitHire(name, roleTemplate string) tea.Cmd {
 // broadcastTargets returns the live, bound descendants of rootName (the subtree
 // minus the root itself) — the agents a broadcast would actually reach. Pending,
 // dead, and unbound nodes are excluded because there's no peer to deliver to.
-func (m Model) broadcastTargets(rootName string) []store.Node {
+//
+// Returns a non-nil error only when something BROKE while computing the set (the
+// store read failed, the node vanished, the subtree walk hit a cycle). A clean
+// (nil, nil) means "this manager genuinely has no reachable team" — the caller
+// must not conflate the two, the same not-broken-vs-empty discipline the broker
+// and tick keep everywhere else.
+func (m Model) broadcastTargets(rootName string) ([]store.Node, error) {
 	if m.live == nil {
-		return nil
+		return nil, fmt.Errorf("no live session")
 	}
 	root, ok := m.nodeRowByName(rootName)
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("%q is no longer in the chart", rootName)
 	}
 	nodes, err := m.live.st.ListNodes()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("reading the org: %w", err)
 	}
 	sub, err := lifecycle.Subtree(nodes, root.NodeID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var targets []store.Node
 	for _, n := range sub {
@@ -119,7 +128,7 @@ func (m Model) broadcastTargets(rootName string) []store.Node {
 			targets = append(targets, n)
 		}
 	}
-	return targets
+	return targets, nil
 }
 
 // submitBroadcast sends one message to every reachable agent in the selected
@@ -134,25 +143,34 @@ func (m Model) submitBroadcast(text string) tea.Cmd {
 	if sel == nil || text == "" {
 		return flash("broadcast cancelled")
 	}
-	targets := m.broadcastTargets(sel.ID)
+	targets, err := m.broadcastTargets(sel.ID)
+	if err != nil {
+		return flash("broadcast failed: %v", err)
+	}
 	if len(targets) == 0 {
 		return flash("no reachable team under %s", sel.ID)
 	}
 	db := m.live.brokerDB
 	root := sel.ID
 	return func() tea.Msg {
-		sent, failed := 0, 0
+		sent := 0
+		var failedNames []string
 		for _, t := range targets {
 			if err := msg.Send(db, "agentcorp", t.PeerID, text); err != nil {
-				failed++
+				failedNames = append(failedNames, t.Name)
 			} else {
 				sent++
 			}
 		}
-		if failed == 0 {
+		if len(failedNames) == 0 {
 			return actionResultMsg{text: fmt.Sprintf("broadcast queued → %d in %s's team", sent, root)}
 		}
-		return actionResultMsg{text: fmt.Sprintf("broadcast to %s's team: %d queued, %d failed", root, sent, failed)}
+		// Name who to follow up with, not just a count.
+		who := strings.Join(failedNames, ", ")
+		if len(who) > 40 {
+			who = who[:40] + "…"
+		}
+		return actionResultMsg{text: fmt.Sprintf("broadcast to %s's team: %d queued, failed for %s", root, sent, who)}
 	}
 }
 

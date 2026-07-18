@@ -17,8 +17,12 @@ func TestBroadcastTargetsAreLiveBoundDescendants(t *testing.T) {
 		store.Node{NodeID: "5", Name: "worker", Role: "dev", ParentID: "2", Workdir: "/t", SpawnMode: "tmux-window", State: "alive", PeerID: "p5", CreatedAt: "5"},
 	)
 
+	targets, err := m.broadcastTargets("ceo")
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := map[string]bool{}
-	for _, n := range m.broadcastTargets("ceo") {
+	for _, n := range targets {
 		got[n.PeerID] = true
 	}
 	if !got["p2"] || !got["p5"] {

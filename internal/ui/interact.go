@@ -344,7 +344,12 @@ func (m *Model) openBroadcast() {
 	if sel == nil || m.live == nil {
 		return
 	}
-	if n := len(m.broadcastTargets(sel.ID)); n == 0 {
+	targets, err := m.broadcastTargets(sel.ID)
+	if err != nil {
+		m.flash = "broadcast unavailable: " + err.Error()
+		return
+	}
+	if len(targets) == 0 {
 		m.flash = "no reachable team under " + sel.ID
 		return
 	}
