@@ -39,11 +39,14 @@ AgentCorp is the company layer on top. It doesn't replace `claude-peers` — it 
 
 ## What it does
 
-- **See the org.** A centered, top-down chart. Every agent shows its role, status, and a live one-line summary of what it's doing.
-- **Steer it.** Hire an agent under any node, message any agent directly, restructure the tree, retire agents.
-- **Survive restarts.** The org is durable. Close AgentCorp, reopen it, everything is still there.
-- **Adopt what's already running.** Sessions AgentCorp didn't spawn show up as unmanaged; adopt them into the chart.
+- **See the org, in colour.** A centered, top-down chart where every card is painted by its live status (active / quiet / pending / dead), with switchable colour themes (`t`).
+- **Inspect any agent.** Press `i` for a detail panel — role, cwd, uptime, peer id, message counts, self-reported summary, and its most recent traffic — that you can page through as you move.
+- **Steer it.** Hire an agent (with a role template), message one directly, broadcast to a whole team, rename, reparent/move, fire, or disband a subtree.
+- **Watch the flow.** A scrollable activity feed (`l`) of the company's message traffic, a live HUD (headcount, active/quiet, throughput sparkline, uptime), and an always-moving ticker.
+- **Survive restarts.** The org is durable. Close AgentCorp, reopen it, everything is still there. Slow hires self-heal — a session that registers late binds automatically.
+- **Adopt what's already running.** Sessions AgentCorp didn't spawn show up as unmanaged; adopt them into the chart (`a`).
 - **Scope by company.** Link a directory to a company and AgentCorp shows only the sessions inside it — so one laptop running many unrelated Claude sessions stops crowding a single chart.
+- **Export it.** Snapshot the org to JSON + a Markdown tree (`e`).
 
 ---
 
@@ -123,14 +126,22 @@ go build ./cmd/agentcorp && ./agentcorp
 
 | Key | Action |
 |---|---|
-| `↑` `↓` | move the cursor |
+| `↑` `↓` / `j` `k` | move the cursor |
 | `space` | fold / unfold a subtree |
-| `⏎` | focus a subtree (breadcrumb back out) |
-| `i` | inspect the selected agent |
-| `d` | density: cards ↔ compact |
-| `h` | hire an agent under the selection |
+| `i` | inspect the selected agent (page with `↑↓`) |
+| `h` | hire an agent, then pick a role |
+| `a` | adopt an unmanaged session |
 | `m` | message the selected agent |
-| `/` | search by name / role / status |
+| `b` | broadcast to its whole team |
+| `R` | rename the selected agent |
+| `r` | move it under a new manager |
+| `x` | fire the selected agent |
+| `shift-D` | disband a subtree |
+| `/` | find by name / role / status |
+| `l` | activity feed (org message log) |
+| `e` | export org snapshot (JSON + Markdown) |
+| `t` | cycle colour theme |
+| `?` | help + colour legend |
 | `q` | quit |
 
 ---
@@ -153,6 +164,7 @@ internal/
   store           sidecar DB — hierarchy, roles, node metadata (ours)
   broker          READ-ONLY reader for claude-peers' DB (never written)
   company         directory → company resolution + scoping — pure core
+  snapshot        org → JSON + Markdown export — pure formatting
   layout          Reingold-Tilford tree positioning — pure, no I/O
   sync            the tick loop: poll → diff → reconcile → apply
   vitals          derived state — pure
@@ -169,7 +181,7 @@ internal/
 
 ## Status
 
-**Phases 1–3 complete, plus directory-scoped companies.** The chart renders, polls the live substrate every second, reports real vitals, and the full hire → bind → message → fire → disband lifecycle works — scoped to the company that owns the launch directory. ~200 tests, single 11MB binary.
+**Phases 1–3 complete, plus directory-scoped companies and a deep operability layer.** The chart renders in colour, polls the live substrate every second, reports real vitals, and the full lifecycle works — hire (with role templates) → self-healing bind → message / broadcast → inspect → rename → move → fire → disband — scoped to the company that owns the launch directory, with adoption, an activity feed, themes, and snapshot export. ~260 tests, single ~11MB binary.
 
 ## Contributing
 

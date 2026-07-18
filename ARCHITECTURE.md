@@ -30,6 +30,7 @@ internal/
   store             sidecar SQLite — hierarchy, roles, node state machine (ours)
   broker            READ-ONLY reader for claude-peers' DB + pure reconcile
   company           directory → company resolution, membership, config — pure core
+  snapshot          org → JSON + Markdown export — pure formatting
   layout            Reingold-Tilford tree positioning — pure, no I/O
   sync              the tick loop: poll → diff → reconcile → apply
   vitals            derived state (active/quiet, throughput) — pure
