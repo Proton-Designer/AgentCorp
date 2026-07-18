@@ -150,7 +150,10 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 		m.live.peers = peers
 	}
 	if msgs, err := broker.ListMessages(m.live.brokerDB); err == nil {
-		m.live.msgs = msgs
+		// Scope to this company's traffic: the broker is machine-wide, so
+		// unrelated sessions' messages would otherwise inflate the sparkline
+		// and ticker with activity that isn't this company's.
+		m.live.msgs = scopeMessages(m.live.companyRoot, m.live.peers, msgs)
 	}
 
 	m.live.summary = vitals.Vitals(nodes, m.live.peers, m.live.msgs, now, ActivityWindow)

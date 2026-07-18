@@ -32,3 +32,29 @@ func InCompany(companyRoot string, peers []broker.Peer) []broker.Peer {
 	}
 	return kept
 }
+
+// scopeMessages keeps only the messages that belong to this company's activity:
+// sent by or to an in-company peer, or sent by the console itself ("agentcorp").
+// Without this the HUD's sparkline and ticker count every unrelated session's
+// traffic on the machine — on a busy laptop that drowns out the company's own
+// signal entirely. companyRoot == "" (unscoped) returns msgs unchanged.
+func scopeMessages(companyRoot string, peers []broker.Peer, msgs []broker.Message) []broker.Message {
+	if companyRoot == "" {
+		return msgs
+	}
+	inCompany := make(map[string]bool)
+	for _, p := range InCompany(companyRoot, peers) {
+		inCompany[p.ID] = true
+	}
+	kept := make([]broker.Message, 0, len(msgs))
+	for _, m := range msgs {
+		if inCompany[m.FromID] || inCompany[m.ToID] || m.FromID == msgSenderConsole {
+			kept = append(kept, m)
+		}
+	}
+	return kept
+}
+
+// msgSenderConsole is the from_id the console stamps on operator messages — its
+// own identity, surfaced honestly rather than spoofing a peer.
+const msgSenderConsole = "agentcorp"
