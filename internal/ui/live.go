@@ -116,6 +116,10 @@ type liveState struct {
 	deadSet        map[string]bool
 	superEvents    []string
 	pendingRevives []string
+
+	// nodeRects is the on-screen rectangle of every visible agent card, recorded
+	// each render so a mouse click can be mapped back to an agent (see jump.go).
+	nodeRects []nodeRect
 }
 
 // bumpBase invalidates the cached base grid: the next render rebuilds it. Called

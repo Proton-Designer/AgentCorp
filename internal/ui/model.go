@@ -294,6 +294,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash = msg.text
 		return m, nil
 
+	case tea.MouseMsg:
+		// Left-click an agent card → open its real tmux session. Only in the
+		// normal (no-modal) view, so a click can't fire mid-dialog.
+		if m.mode == modeNormal && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if name, ok := m.nodeAt(msg.X, msg.Y); ok {
+				return m, m.jumpToAgentCmd(name)
+			}
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		// While the launch splash is up, any key skips straight to the chart —
 		// except ctrl+c, which still quits.
@@ -329,6 +339,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+			}
+		case "enter":
+			// Open the selected agent's real tmux session — the keyboard twin of
+			// clicking its card. Works in every view since it uses the selection.
+			if sel := m.selected(); sel != nil {
+				return m, m.jumpToAgentCmd(sel.ID)
 			}
 		case " ":
 			if n := m.selected(); n != nil && len(n.Children) > 0 {
@@ -593,7 +609,11 @@ func (m Model) View() string {
 			b.WriteString("  " + hudLine(m.live.summary, m.live.spark, m.live.stale) + "\n")
 		}
 		b.WriteString("\n")
+		// The chart starts on the row after everything emitted so far — count it
+		// so a click can be mapped back to the agent card at (col, row).
+		baseRow := strings.Count(b.String(), "\n")
 		b.WriteString(m.renderChart())
+		m.recordNodeRects(baseRow)
 		b.WriteString("\n")
 	}
 
@@ -651,7 +671,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · z revive · shift-S supervise · shift-D disband · / find · o office · g mission · t theme · v motion · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · click/⏎ open session · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · z revive · shift-S supervise · shift-D disband · / find · o office · g mission · t theme · v motion · q quit\n")
 	}
 	return b.String()
 }

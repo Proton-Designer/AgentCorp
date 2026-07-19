@@ -6,6 +6,7 @@ import "strings"
 // the single source of truth so the overlay can't drift from the footer hint.
 var helpKeys = [][2]string{
 	{"↑↓ / j k", "move the cursor"},
+	{"click / enter", "open the agent's session (switch to its tmux window)"},
 	{"space", "fold / unfold a subtree"},
 	{"i", "inspect the selected agent"},
 	{"h", "hire a new agent (then pick a role)"},
