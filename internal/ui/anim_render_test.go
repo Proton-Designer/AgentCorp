@@ -49,6 +49,7 @@ func TestLEDBreathesThroughDistinctLevels(t *testing.T) {
 	currentTheme = 0
 
 	m := twoNodeModel(t, vitals.StatusActive, vitals.StatusQuiet)
+	m.cursor = -1 // deselect, so the selection highlight doesn't override the LED
 	boss := ledCell(t, m, "boss")
 
 	// Pulse(0,16)=0 → faint (SGR 2); Pulse(4,16)=0.5 → normal; Pulse(8,16)=1 → bold (SGR 1).
@@ -100,6 +101,7 @@ func TestLivelyBreathesWholeBorderCalmDoesNot(t *testing.T) {
 	colorEnabled = true
 
 	m := twoNodeModel(t, vitals.StatusActive, vitals.StatusQuiet)
+	m.cursor = -1 // deselect, so the selection highlight doesn't paint the border
 	boss := ledCell(t, m, "boss") // (x+1, y) — a top-border cell
 	// A left-edge border cell that is NOT the LED: (x, y).
 	edge := [2]int{boss[0] - 1, boss[1]}
@@ -112,6 +114,27 @@ func TestLivelyBreathesWholeBorderCalmDoesNot(t *testing.T) {
 	m.motion = motionLively
 	if _, ok := m.buildOverlay()[edge]; !ok {
 		t.Errorf("lively mode must breathe the full active-card border")
+	}
+}
+
+func TestSelectionHighlightsSelectedCardBorder(t *testing.T) {
+	defer func(c bool) { colorEnabled = c }(colorEnabled)
+	colorEnabled = true
+
+	// Both quiet (no breath), so any border overlay is the selection highlight.
+	m := twoNodeModel(t, vitals.StatusQuiet, vitals.StatusQuiet)
+	m.frame = 5
+	m.cursor = 0 // select the root ("boss")
+
+	bossEdge := [2]int{ledCell(t, m, "boss")[0] - 1, ledCell(t, m, "boss")[1]} // a border cell
+	workerEdge := [2]int{ledCell(t, m, "worker")[0] - 1, ledCell(t, m, "worker")[1]}
+
+	ov := m.buildOverlay()
+	if c, ok := ov[bossEdge]; !ok || !strings.Contains(c.ansi, "\x1b[1;") {
+		t.Errorf("selected card's border should be bold-highlighted, got %v (ok=%v)", c, ok)
+	}
+	if _, ok := ov[workerEdge]; ok {
+		t.Errorf("a non-selected, quiet card must not be highlighted")
 	}
 }
 
@@ -133,9 +156,10 @@ func TestStillFrameMatchesStyledRenderer(t *testing.T) {
 	defer func(i int) { currentTheme = i }(currentTheme)
 	currentTheme = 0
 
-	// No active nodes → empty overlay every frame → the animated path must be
-	// byte-identical to the plain styled renderer.
+	// No active nodes AND no selection → empty overlay every frame → the animated
+	// path must be byte-identical to the plain styled renderer.
 	m := twoNodeModel(t, vitals.StatusQuiet, vitals.StatusQuiet)
+	m.cursor = -1
 	m.frame = 8
 	animated := m.renderAnimated()
 	styled := RenderStyled(m.root, m.width, func(id string) vitals.Status {

@@ -103,7 +103,34 @@ func (m Model) buildOverlay() overlay {
 	walk(m.root)
 
 	m.addFlowOverlay(ov, byName)
+
+	// Selection highlight: the cursor's card border goes bold in its status
+	// colour — the brightest card on the chart — so the selection is visible on
+	// the tree itself, not only in the speech bubble below it. Applied last so it
+	// wins over a breathing border on the same card.
+	if sel := m.selected(); sel != nil {
+		if n, ok := byName[sel.ID]; ok && n.W >= 4 {
+			setBorder(ov, n, dimANSI(styleForStatus(statuses[sel.ID]), 2))
+		}
+	}
 	return ov
+}
+
+// setBorder paints every border cell of a card with the given escape, keeping the
+// base runes. Shared by the breathing effect and the selection highlight.
+func setBorder(ov overlay, n *layout.Node, ansi string) {
+	if ansi == "" {
+		return
+	}
+	x, y, w, h := n.X, n.Y, n.W, n.H
+	for i := 0; i < w; i++ {
+		ov[[2]int{x + i, y}] = ovCell{ansi: ansi}
+		ov[[2]int{x + i, y + h - 1}] = ovCell{ansi: ansi}
+	}
+	for j := 0; j < h; j++ {
+		ov[[2]int{x, y + j}] = ovCell{ansi: ansi}
+		ov[[2]int{x + w - 1, y + j}] = ovCell{ansi: ansi}
+	}
 }
 
 // addCardBreath paints an active card's whole border at a breathing intensity,
@@ -113,19 +140,7 @@ func (m Model) buildOverlay() overlay {
 func addCardBreath(ov overlay, n *layout.Node, frame int) {
 	off := (n.X*3 + n.Y*7) % ledBreathPeriod
 	lvl := anim.Level(anim.Pulse(frame+off, ledBreathPeriod), ledBreathLevels)
-	a := dimANSI(styActive, lvl)
-	if a == "" {
-		return
-	}
-	x, y, w, h := n.X, n.Y, n.W, n.H
-	for i := 0; i < w; i++ {
-		ov[[2]int{x + i, y}] = ovCell{ansi: a}
-		ov[[2]int{x + i, y + h - 1}] = ovCell{ansi: a}
-	}
-	for j := 0; j < h; j++ {
-		ov[[2]int{x, y + j}] = ovCell{ansi: a}
-		ov[[2]int{x + w - 1, y + j}] = ovCell{ansi: a}
-	}
+	setBorder(ov, n, dimANSI(styActive, lvl))
 }
 
 // addFlowOverlay paints each in-flight message as a bright comet riding its

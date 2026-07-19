@@ -105,6 +105,7 @@ type liveState struct {
 	nameToPeer   map[string]string // node name → peer id, for the speech bubble lookups
 	peerToName   map[string]string // peer id → node name, for the newswire feed
 	newswire     string            // the scrolling news band, rebuilt each data tick
+	demo         bool              // --demo: display-only, no hire flow wired
 }
 
 // bumpBase invalidates the cached base grid: the next render rebuilds it. Called

@@ -170,6 +170,7 @@ func NewDemo(st *store.Store, nodes []store.Node,
 		// fires, so seeded nodes stay alive purely on the injected peer list.
 		listPanes: func() (map[string]sync.Pane, error) { return map[string]sync.Pane{}, nil },
 		company:   company.Company{Name: companyName},
+		demo:      true,
 	}
 	// Pre-populate peers + summary so the very first frame (before the first
 	// tick lands) already shows the agents alive rather than briefly dead.

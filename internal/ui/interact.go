@@ -261,6 +261,13 @@ func (m Model) handleModalKey(key string) (Model, tea.Cmd, bool) {
 
 // openHire, openMessage, etc. are the entry points from normal-mode keys.
 func (m *Model) openHire() {
+	// --demo wires no hire flow (no tmux, no real spawns), so opening the name
+	// prompt would lead to a dead end. Say so up front instead — a screenshot/GIF
+	// of the demo shouldn't capture a prompt that can't complete.
+	if m.live != nil && m.live.demo {
+		m.flash = "hiring is disabled in --demo"
+		return
+	}
 	m.hireInput = input{prompt: "hire — name:"}
 	m.mode = modeHire
 }
