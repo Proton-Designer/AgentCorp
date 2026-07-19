@@ -18,9 +18,9 @@ func TestPhase(t *testing.T) {
 		{3, 4, 0.75},
 		{4, 4, 0.0}, // wraps
 		{5, 4, 0.25},
-		{-1, 4, 0.75},  // negative frames wrap forward, never negative
-		{7, 0, 0.0},    // guard: period 0 is a still frame, not a panic
-		{7, -3, 0.0},   // guard: negative period likewise
+		{-1, 4, 0.75}, // negative frames wrap forward, never negative
+		{7, 0, 0.0},   // guard: period 0 is a still frame, not a panic
+		{7, -3, 0.0},  // guard: negative period likewise
 	}
 	for _, c := range cases {
 		if got := Phase(c.frame, c.period); !approx(got, c.want) {
