@@ -78,6 +78,38 @@ func ansiFor(s cellStyle) string {
 
 const ansiReset = "\x1b[0m"
 
+// themeColorCode returns the current theme's raw 256-colour number for a style
+// (e.g. "48"), or "" when the style has no colour. The animation layer needs the
+// bare code so it can wrap it with brightness attributes (faint/bold) that a
+// fully-formed escape from ansiFor would not let it vary.
+func themeColorCode(s cellStyle) string {
+	if int(s) < 0 || int(s) >= len(themes[currentTheme].p) {
+		return ""
+	}
+	return themes[currentTheme].p[s]
+}
+
+// dimANSI builds a foreground escape for a style at one of three brightness
+// levels: 0 faint (SGR 2), 1 normal, 2 bold (SGR 1). This is how a quantised
+// pulse (anim.Level over anim.Pulse) turns into a "breathing" cell without ever
+// changing the hue — only the intensity moves, which reads as alive rather than
+// as a colour cycle. Returns "" when the style has no colour so callers can fall
+// straight through to the base cell.
+func dimANSI(s cellStyle, level int) string {
+	code := themeColorCode(s)
+	if code == "" {
+		return ""
+	}
+	switch level {
+	case 0:
+		return "\x1b[2;38;5;" + code + "m"
+	case 2:
+		return "\x1b[1;38;5;" + code + "m"
+	default:
+		return "\x1b[38;5;" + code + "m"
+	}
+}
+
 // styleForStatus maps a live vitals.Status to the card colour it paints with.
 func styleForStatus(s vitals.Status) cellStyle {
 	switch s {

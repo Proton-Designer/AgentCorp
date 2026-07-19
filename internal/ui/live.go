@@ -87,6 +87,28 @@ type liveState struct {
 	// new agent is spawned (defaults to the operator's cwd).
 	hireFlow    *hire.Flow
 	hireWorkdir string
+
+	// --- animation cache (see anim_render.go) ---
+	// The base rune+style grid, rebuilt only when baseVersion changes (a data
+	// tick or a fold), so the 100ms frame path never re-runs layout. statuses is
+	// the per-node status map cached at each data tick so the frame path never
+	// re-queries SQLite. animating is the cheap "is anything moving" gate the
+	// frame scheduler reads to decide 10fps vs a 1s idle heartbeat.
+	baseGrid     [][]rune
+	baseStyles   [][]cellStyle
+	baseW, baseH int
+	baseVersion  int // bumped when geometry/status can have changed
+	baseBuiltVer int // the version the cache was built at
+	statuses     map[string]vitals.Status
+	animating    bool
+}
+
+// bumpBase invalidates the cached base grid: the next render rebuilds it. Called
+// wherever geometry or status can change (a data tick, a fold).
+func (ls *liveState) bumpBase() {
+	if ls != nil {
+		ls.baseVersion++
+	}
 }
 
 // tickCmd runs one poll cycle off the UI goroutine and delivers the result
@@ -117,6 +139,23 @@ func scheduleTick() tea.Cmd {
 // tickWake is the timer firing. It's distinct from sync.TickMsg (the poll
 // result) so a slow poll can never stack up behind the timer.
 type tickWake struct{}
+
+// FrameInterval is the animation frame cadence — an order of magnitude faster
+// than the data poll. This clock ONLY advances the animation counter; it never
+// touches the broker/tmux/SQLite I/O path (that stays single-flighted at
+// TickInterval). When nothing is moving, the frame handler re-arms at
+// TickInterval instead, so an idle org pays ~1fps of no-ops.
+const FrameInterval = 100 * time.Millisecond
+
+// frameTick is the animation clock firing. Deliberately a distinct type from
+// tickWake so the frame path can never be mistaken for — or stack up behind —
+// the data poll.
+type frameTick struct{}
+
+// scheduleFrame arms the animation clock after d.
+func scheduleFrame(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return frameTick{} })
+}
 
 // applyTick folds a completed poll into the model.
 //
@@ -176,6 +215,14 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	m.live.summary.Uptime = now.Sub(m.live.started)
 	m.live.spark = sparkline(vitals.Throughput(m.live.msgs, ThroughputWindow, now))
 	m.live.ticker = vitals.Ticker(m.live.msgs)
+
+	// Cache the per-node status map once here (a data tick) so the 100ms frame
+	// path reads it instead of re-querying the store 10x/second, and flag whether
+	// anything is animatable this second so the frame scheduler can idle. Then
+	// invalidate the base grid — status or geometry may have moved.
+	m.live.statuses = m.computeStatusMap(now)
+	m.live.animating = m.live.summary.Active > 0
+	m.live.bumpBase()
 }
 
 // statusOf returns a node's live status glyph input. Nodes are matched to

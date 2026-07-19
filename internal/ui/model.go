@@ -58,6 +58,13 @@ type Model struct {
 	// flash is a transient one-line status (last action's outcome). Cleared
 	// on the next keypress so it never lingers as stale truth.
 	flash string
+
+	// frame is the animation frame counter, advanced by the decoupled frame
+	// clock (frameTick) — never by the 1s data poll. motion is the global motion
+	// budget gating how much animation actually moves. See motion.go, live.go's
+	// frame scheduler, and anim_render.go.
+	frame  int
+	motion motionLevel
 }
 
 // BuildTree assembles a layout tree from store rows.
@@ -112,6 +119,7 @@ func New(nodes []store.Node) Model {
 // The hire flow is left nil; call WithHire to enable spawning.
 func NewLive(st *store.Store, nodes []store.Node) Model {
 	m := New(nodes)
+	m.motion = motionCalm // live consoles breathe by default; 'v' cycles/stills it
 	brokerDB := BrokerDBPath()
 	m.live = &liveState{
 		st:        st,
@@ -135,6 +143,7 @@ func NewDemo(st *store.Store, nodes []store.Node,
 	msgs func() ([]broker.Message, error),
 	companyName string) Model {
 	m := New(nodes)
+	m.motion = motionCalm // the demo should feel alive when shown off
 	m.live = &liveState{
 		st:           st,
 		lastPanes:    map[string]sync.Pane{},
@@ -214,8 +223,10 @@ func (m Model) Init() tea.Cmd {
 	if m.live == nil {
 		return nil
 	}
-	// Poll immediately so the first frame is current, then start the timer.
-	return tea.Batch(m.tickCmd(), scheduleTick())
+	// Poll immediately so the first frame is current, then start the data timer
+	// and the independent animation clock. The frame clock self-throttles to a
+	// 1s idle heartbeat until there's something to animate.
+	return tea.Batch(m.tickCmd(), scheduleTick(), scheduleFrame(FrameInterval))
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -233,6 +244,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// after the poll completes keeps the cadence steady even if a poll
 		// runs long.
 		return m, tea.Batch(m.tickCmd(), scheduleTick())
+
+	case frameTick:
+		// The animation clock. It advances the frame counter ONLY when motion is
+		// on and something is actually moving (cached from the last data tick),
+		// then re-arms at the fast cadence. Otherwise it advances nothing and
+		// re-arms at the slow idle heartbeat, so an idle or motion-off org costs
+		// ~1fps of no-ops rather than 10. It never runs the data I/O path.
+		if m.motion.animates() && m.live != nil && m.live.animating {
+			m.frame++
+			return m, scheduleFrame(FrameInterval)
+		}
+		return m, scheduleFrame(TickInterval)
 
 	case sync.TickMsg:
 		m.applyTick(msg)
@@ -272,6 +295,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if n := m.selected(); n != nil && len(n.Children) > 0 {
 				n.Collapsed = !n.Collapsed
 				m.reflatten()
+				m.live.bumpBase() // folding changes geometry — rebuild the cache
 			}
 		case "h":
 			m.openHire()
@@ -293,6 +317,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if colorEnabled {
 				m.flash = "theme: " + cycleTheme()
 			}
+		case "v":
+			// Cycle the motion budget: off → calm → lively → off. We deliberately
+			// do NOT arm a frame here — exactly one frame timer is ever in flight
+			// (Init starts it, each frameTick re-arms it). The running timer picks
+			// the fast cadence back up within one idle heartbeat (≤1s) once motion
+			// is on and something is moving; spawning a second timer would double
+			// the frame rate.
+			m.motion = m.motion.next()
+			m.flash = "motion: " + m.motion.String()
 		case "?":
 			m.mode = modeHelp
 		case "R":
@@ -321,15 +354,36 @@ func (m Model) renderChart() string {
 	if m.live == nil {
 		return Render(m.root, m.width)
 	}
+	// Motion on (and colour available) → the cached-base + overlay path, which
+	// falls back to a byte-identical styled emit on any still frame. Motion off →
+	// the plain styled renderer, unchanged.
+	if colorEnabled && m.motion.animates() {
+		return m.renderAnimated()
+	}
 	statuses := m.statusMap()
 	return RenderStyled(m.root, m.width, func(id string) vitals.Status {
 		return statuses[id]
 	})
 }
 
-// statusMap classifies every node once per render (keyed by the name the layout
-// tree carries), so the styled renderer doesn't re-list the store per card.
+// statusMap returns the per-node status map (keyed by the name the layout tree
+// carries). It serves the cache the data tick populated so the 100ms frame path
+// never re-lists the store; a nil cache (first frame before any tick, or a live
+// model in a test) falls back to a fresh computation.
 func (m Model) statusMap() map[string]vitals.Status {
+	if m.live == nil {
+		return map[string]vitals.Status{}
+	}
+	if m.live.statuses != nil {
+		return m.live.statuses
+	}
+	return m.computeStatusMap(time.Now())
+}
+
+// computeStatusMap classifies every node against a point-in-time snapshot. The
+// data tick calls this once per second and caches the result; the animation path
+// reads the cache rather than re-running this at 10Hz.
+func (m Model) computeStatusMap(now time.Time) map[string]vitals.Status {
 	out := map[string]vitals.Status{}
 	if m.live == nil {
 		return out
@@ -338,7 +392,6 @@ func (m Model) statusMap() map[string]vitals.Status {
 	if err != nil {
 		return out
 	}
-	now := time.Now()
 	for _, n := range nodes {
 		out[n.Name] = vitals.NodeStatus(n, m.live.peers, m.live.msgs, now, ActivityWindow)
 	}
@@ -496,7 +549,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · v motion · q quit\n")
 	}
 	return b.String()
 }

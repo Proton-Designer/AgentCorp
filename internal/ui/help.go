@@ -22,6 +22,7 @@ var helpKeys = [][2]string{
 	{"l", "activity feed (org message log)"},
 	{"e", "export org snapshot (JSON + Markdown)"},
 	{"t", "cycle colour theme"},
+	{"v", "cycle motion (off / calm / lively)"},
 	{"?", "this help"},
 	{"q", "quit"},
 }
