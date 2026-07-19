@@ -362,6 +362,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = viewOffice
 			}
 			m.flash = "view: " + m.view.String()
+		case "g":
+			// Toggle the mission-control dashboard.
+			if m.view == viewMission {
+				m.view = viewTree
+			} else {
+				m.view = viewMission
+			}
+			m.flash = "view: " + m.view.String()
 		case "v":
 			// Cycle the motion budget: off → calm → lively → off. We deliberately
 			// do NOT arm a frame here — exactly one frame timer is ever in flight
@@ -408,6 +416,13 @@ func (m Model) renderChart() string {
 			h = 8
 		}
 		return renderOffice(m.root, m.statusMap(), m.width, h)
+	}
+	if m.view == viewMission {
+		h := m.height - 12
+		if h < 8 {
+			h = 8
+		}
+		return m.renderMission(m.width, h)
 	}
 	// Motion on (and colour available) → the cached-base + overlay path, which
 	// falls back to a byte-identical styled emit on any still frame. Motion off →
@@ -617,7 +632,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · o office · t theme · v motion · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · o office · g mission · t theme · v motion · q quit\n")
 	}
 	return b.String()
 }

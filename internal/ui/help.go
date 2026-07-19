@@ -21,6 +21,7 @@ var helpKeys = [][2]string{
 	{"/", "find by name / role / status"},
 	{"l", "activity feed (org message log)"},
 	{"o", "toggle office / floor-plan view"},
+	{"g", "toggle mission-control dashboard"},
 	{"e", "export org snapshot (JSON + Markdown)"},
 	{"t", "cycle colour theme"},
 	{"v", "cycle motion (off / calm / lively)"},

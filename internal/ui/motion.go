@@ -50,12 +50,17 @@ type viewMode uint8
 const (
 	viewTree viewMode = iota
 	viewOffice
+	viewMission
 )
 
 func (v viewMode) String() string {
-	if v == viewOffice {
+	switch v {
+	case viewOffice:
 		return "office"
+	case viewMission:
+		return "mission control"
+	default:
+		return "tree"
 	}
-	return "tree"
 }
 
