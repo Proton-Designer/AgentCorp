@@ -244,8 +244,9 @@ func demoMessages(start time.Time, peerIDs []string) func() ([]broker.Message, e
 	}
 	base := start.Add(-demoBackfill * demoStep)
 	return func() ([]broker.Message, error) {
-		live := int(time.Since(start) / demoStep)
-		total := demoBackfill + live
+		// +1 so the newest message lands at ~now (age < demoStep), keeping a fresh
+		// pulse inside FlowWindow at all times rather than trailing a step behind.
+		total := demoBackfill + int(time.Since(start)/demoStep) + 1
 		out := make([]broker.Message, 0, total)
 		for i := 0; i < total; i++ {
 			e := edges[i%len(edges)]

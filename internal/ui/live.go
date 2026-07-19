@@ -101,6 +101,7 @@ type liveState struct {
 	baseBuiltVer int // the version the cache was built at
 	statuses     map[string]vitals.Status
 	animating    bool
+	flows        []flowSpec // message-flow edges to animate, derived each data tick
 }
 
 // bumpBase invalidates the cached base grid: the next render rebuilds it. Called
@@ -217,11 +218,14 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	m.live.ticker = vitals.Ticker(m.live.msgs)
 
 	// Cache the per-node status map once here (a data tick) so the 100ms frame
-	// path reads it instead of re-querying the store 10x/second, and flag whether
-	// anything is animatable this second so the frame scheduler can idle. Then
-	// invalidate the base grid — status or geometry may have moved.
+	// path reads it instead of re-querying the store 10x/second, and derive the
+	// animatable message-flow edges once here too (adjacency mapping + recency
+	// filtering is the expensive part; the frame path only rides the result). Flag
+	// whether anything is animatable this second so the frame scheduler can idle.
+	// Then invalidate the base grid — status or geometry may have moved.
 	m.live.statuses = m.computeStatusMap(now)
-	m.live.animating = m.live.summary.Active > 0
+	m.live.flows = computeFlows(nodes, m.live.msgs, now, FlowWindow)
+	m.live.animating = m.live.summary.Active > 0 || len(m.live.flows) > 0
 	m.live.bumpBase()
 }
 

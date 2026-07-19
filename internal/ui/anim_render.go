@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/Proton-Designer/AgentCorp/internal/anim"
 	"github.com/Proton-Designer/AgentCorp/internal/layout"
@@ -76,8 +77,10 @@ func (m Model) buildOverlay() overlay {
 	if breath == "" {
 		return ov
 	}
+	byName := map[string]*layout.Node{}
 	var walk func(n *layout.Node)
 	walk = func(n *layout.Node) {
+		byName[n.ID] = n
 		if statuses[n.ID] == vitals.StatusActive && n.W >= 4 {
 			// The LED sits at (x+1, y) — the border cell just after the corner,
 			// exactly where drawCard paints the status glyph. Repaint its colour
@@ -92,7 +95,50 @@ func (m Model) buildOverlay() overlay {
 		}
 	}
 	walk(m.root)
+
+	m.addFlowOverlay(ov, byName)
 	return ov
+}
+
+// addFlowOverlay paints each in-flight message as a bright comet riding its
+// connector wire (F1). Only edges with a real recent broker row (m.live.flows,
+// derived at the data tick) are drawn, and each pulse stops at the wire's end —
+// it never enters a card, so transport is never mistaken for the destination
+// acting on the message.
+func (m Model) addFlowOverlay(ov overlay, byName map[string]*layout.Node) {
+	if len(m.live.flows) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, f := range m.live.flows {
+		if age := now.Sub(f.sentAt); age < 0 || age > FlowWindow {
+			continue // aged out of the window since the last data tick
+		}
+		p, c := byName[f.parent], byName[f.child]
+		if p == nil || c == nil {
+			continue
+		}
+		path := edgePath(p, c)
+		if len(path) == 0 {
+			continue
+		}
+		head := anim.Along(m.frame, flowFramePeriod, len(path))
+		for tail := 0; tail <= flowTail; tail++ {
+			idx := head - tail
+			if idx < 0 {
+				break
+			}
+			cell := path[idx]
+			if f.up { // travels child→parent: ride the path from the child end
+				cell = path[len(path)-1-idx]
+			}
+			// Head brightest, trailing cells fade — a comet along the wire. Don't
+			// overwrite a card/LED cell the base already owns at full status colour.
+			if a := dimANSI(styActive, 2-tail); a != "" {
+				ov[cell] = ovCell{ansi: a}
+			}
+		}
+	}
 }
 
 // renderAnimated is the motion-on chart path: composite this frame's overlay over
