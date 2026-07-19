@@ -137,8 +137,10 @@ predictions on both sides.
 
 Pointed at AgentCorp's own tests it found a documented invariant with no test, a
 cascade-kill path never invoked, and edge branches that survive mutation. Pointed at a
-peer team's TypeScript codebase — blind — it found a *fixed-but-never-tested* bug. It
-is a **diagnostic, never a score**: at the precision honesty demands it surfaces "N to
+peer team's TypeScript codebase — blind — it found a documented invariant no test
+covered: a fix that had been made but never tested, so it could silently regress (the
+peer team then closed it with a test that provably fails without the fix). It is a
+**diagnostic, never a score**: at the precision honesty demands it surfaces "N to
 investigate," and a scored detector is a gamed detector. The full design, the
 refutation that shaped it, and the honest results (including what it misses and its
 ~11% precision on the invariant detector) are in

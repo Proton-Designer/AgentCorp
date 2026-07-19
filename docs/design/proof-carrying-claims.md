@@ -220,9 +220,11 @@ correction is the more useful artifact.
   `internal/vitals` and `internal/hire`.
 - *Cross-codebase (the strongest test — foreign code, blind grading):* the
   invariant-comment detector, run on a peer team's TypeScript codebase the author had
-  never opened, graded cold by that team: **2 of 19 genuine** (a *fixed-but-never-
-  tested* bug in `colorKey`; an untested fatal-propagation in `resolveWidthTable`),
-  ~15 false positives, precision ≈ 11%.
+  never opened, graded cold by that team: **2 of 19 genuine** — `colorKey`, a fix that
+  had been made but never tested (a documented invariant no test covered — NOT a live
+  bug; the guard works, the test was missing; the peer team then closed it with a test
+  that provably fails without the fix), and an untested fatal-propagation in
+  `resolveWidthTable` — plus ~15 false positives, precision ≈ 11%.
 
 **What is NOT novel (stated so the write-up can't overclaim it).** The pattern the
 findings trace — tests cover decisions and main paths, skip effects and edge branches
