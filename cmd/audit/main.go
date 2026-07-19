@@ -49,6 +49,7 @@ func runInvariants(args []string) {
 	fs := flag.NewFlagSet("invariants", flag.ExitOnError)
 	lang := fs.String("lang", "go", "go|ts")
 	dir := fs.String("dir", ".", "root directory to scan")
+	coverage := fs.Bool("coverage", false, "Go only: filter to symbols the test suite does not reach (higher precision)")
 	_ = fs.Parse(args)
 
 	var l audit.Lang
@@ -70,6 +71,22 @@ func runInvariants(args []string) {
 
 	src, tests := collect(*dir, srcExt, isTest)
 	findings := audit.ScanInvariants(l, src, tests)
+
+	dropped := 0
+	if *coverage {
+		if l != audit.LangGo {
+			fmt.Fprintln(os.Stderr, "--coverage is Go-only (needs the go test/cover toolchain)")
+			os.Exit(2)
+		}
+		cov, err := audit.FuncCoverage(*dir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "coverage:", err)
+			os.Exit(1)
+		}
+		var kept, drop []audit.InvariantFinding
+		kept, drop = audit.FilterUnreached(findings, cov)
+		findings, dropped = kept, len(drop)
+	}
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].File != findings[j].File {
 			return findings[i].File < findings[j].File
@@ -78,7 +95,11 @@ func runInvariants(args []string) {
 	})
 
 	fmt.Printf("# invariant-comment audit — %s (%s)\n", *dir, *lang)
-	fmt.Printf("# %d source files, %d test files, %d raw findings\n", len(src), len(tests), len(findings))
+	if *coverage {
+		fmt.Printf("# %d source files, %d test files, %d findings (%d dropped as reached-by-tests)\n", len(src), len(tests), len(findings), dropped)
+	} else {
+		fmt.Printf("# %d source files, %d test files, %d raw findings\n", len(src), len(tests), len(findings))
+	}
 	fmt.Println("# RAW findings for cold grading — a documented guarantee whose symbol no test names.")
 	fmt.Println("# Known limit: invariant-language grep conflates CONTRACT with RATIONALE; expect false positives on discursive comments.")
 	for _, f := range findings {
