@@ -95,6 +95,26 @@ func TestQuietNodeDoesNotBreathe(t *testing.T) {
 	}
 }
 
+func TestLivelyBreathesWholeBorderCalmDoesNot(t *testing.T) {
+	defer func(c bool) { colorEnabled = c }(colorEnabled)
+	colorEnabled = true
+
+	m := twoNodeModel(t, vitals.StatusActive, vitals.StatusQuiet)
+	boss := ledCell(t, m, "boss") // (x+1, y) — a top-border cell
+	// A left-edge border cell that is NOT the LED: (x, y).
+	edge := [2]int{boss[0] - 1, boss[1]}
+	m.frame = 3 // mid-breath so levels are non-trivial
+
+	m.motion = motionCalm
+	if _, ok := m.buildOverlay()[edge]; ok {
+		t.Errorf("calm mode must only breathe the LED, not the whole border")
+	}
+	m.motion = motionLively
+	if _, ok := m.buildOverlay()[edge]; !ok {
+		t.Errorf("lively mode must breathe the full active-card border")
+	}
+}
+
 func TestMotionOffProducesNoOverlay(t *testing.T) {
 	defer func(c bool) { colorEnabled = c }(colorEnabled)
 	colorEnabled = true

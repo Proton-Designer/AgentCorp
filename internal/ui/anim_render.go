@@ -82,9 +82,15 @@ func (m Model) buildOverlay() overlay {
 	walk = func(n *layout.Node) {
 		byName[n.ID] = n
 		if statuses[n.ID] == vitals.StatusActive && n.W >= 4 {
+			// Lively mode: the whole card border breathes, phase-staggered per card
+			// so they don't pulse in unison (organic, and it spreads the byte
+			// changes across frames so the per-line diff still skips most rows).
+			if m.motion == motionLively {
+				addCardBreath(ov, n, m.frame)
+			}
 			// The LED sits at (x+1, y) — the border cell just after the corner,
-			// exactly where drawCard paints the status glyph. Repaint its colour
-			// only; the ● rune stays the base's.
+			// exactly where drawCard paints the status glyph. Set last so its own
+			// (unstaggered) breath owns that cell. Rune stays the base's ●.
 			ov[[2]int{n.X + 1, n.Y}] = ovCell{ansi: breath}
 		}
 		if n.Collapsed {
@@ -98,6 +104,28 @@ func (m Model) buildOverlay() overlay {
 
 	m.addFlowOverlay(ov, byName)
 	return ov
+}
+
+// addCardBreath paints an active card's whole border at a breathing intensity,
+// phase-offset by the card's position so the org doesn't pulse as one block. Hue
+// is unchanged — only the active colour's brightness moves — so it reads as a
+// vital sign, never as a status change.
+func addCardBreath(ov overlay, n *layout.Node, frame int) {
+	off := (n.X*3 + n.Y*7) % ledBreathPeriod
+	lvl := anim.Level(anim.Pulse(frame+off, ledBreathPeriod), ledBreathLevels)
+	a := dimANSI(styActive, lvl)
+	if a == "" {
+		return
+	}
+	x, y, w, h := n.X, n.Y, n.W, n.H
+	for i := 0; i < w; i++ {
+		ov[[2]int{x + i, y}] = ovCell{ansi: a}
+		ov[[2]int{x + i, y + h - 1}] = ovCell{ansi: a}
+	}
+	for j := 0; j < h; j++ {
+		ov[[2]int{x, y + j}] = ovCell{ansi: a}
+		ov[[2]int{x + w - 1, y + j}] = ovCell{ansi: a}
+	}
 }
 
 // addFlowOverlay paints each in-flight message as a bright comet riding its
