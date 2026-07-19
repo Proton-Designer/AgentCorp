@@ -164,7 +164,11 @@ func runDemo() error {
 		{NodeID: "2", Name: "backend", Role: "engineer", ParentID: "1", State: "alive", PeerID: "demo-2", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:01Z"},
 		{NodeID: "3", Name: "frontend", Role: "engineer", ParentID: "1", State: "alive", PeerID: "demo-3", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:02Z"},
 		{NodeID: "4", Name: "research", Role: "researcher", ParentID: "1", State: "alive", PeerID: "demo-4", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:03Z"},
-		{NodeID: "5", Name: "intern", Role: "engineer", ParentID: "2", State: "alive", PeerID: "demo-5", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:04Z"},
+		// intern starts DEAD so the supervisor has something to decide about on
+		// launch — press 'S' to arm auto-heal and watch it come back (demo synthetic
+		// revive; a real session would resume via claude --resume). SessionID set so
+		// it reads as a revivable death, not a memory-gone one.
+		{NodeID: "5", Name: "intern", Role: "engineer", ParentID: "2", State: "dead", PeerID: "", SessionID: "demo-intern-session", Workdir: dir, SpawnMode: "adopted", CreatedAt: "2026-07-18T00:00:04Z"},
 	}
 	peerIDs := make([]string, len(seed))
 	for i, n := range seed {

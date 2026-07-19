@@ -286,7 +286,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sync.TickMsg:
 		m.applyTick(msg)
-		return m, nil
+		// If supervision is armed and queued any revives this tick, dispatch them
+		// as a background command (never blocking the UI).
+		return m, m.superviseCmd()
 
 	case actionResultMsg:
 		m.flash = msg.text
@@ -371,6 +373,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = viewMission
 			}
 			m.flash = "view: " + m.view.String()
+		case "S":
+			// Arm/disarm automatic supervision (self-healing). Off by default
+			// because an armed supervisor auto-revives dead agents, which spawns
+			// real sessions — the operator opts into that cost explicitly.
+			if m.live != nil {
+				m.live.superviseOn = !m.live.superviseOn
+				if m.live.superviseOn {
+					m.flash = "supervision ARMED — dead agents auto-revive (budget-bounded)"
+					// Re-evaluate already-dead nodes next tick, not just newly-dead
+					// ones, so arming acts on the current state immediately.
+					m.live.deadSet = nil
+				} else {
+					m.flash = "supervision off — decisions shown, nothing auto-revived"
+				}
+			}
 		case "v":
 			// Cycle the motion budget: off → calm → lively → off. We deliberately
 			// do NOT arm a frame here — exactly one frame timer is ever in flight
@@ -585,6 +602,7 @@ func (m Model) View() string {
 	// peer-id ticker with something that reads like a company's live wire.
 	if m.live != nil {
 		b.WriteString(m.renderNewswire())
+		b.WriteString(m.renderSupervision())
 	}
 
 	// A stale view must say so. The tree on screen is the last thing we knew
@@ -633,7 +651,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · o office · g mission · t theme · v motion · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · z revive · shift-S supervise · shift-D disband · / find · o office · g mission · t theme · v motion · q quit\n")
 	}
 	return b.String()
 }

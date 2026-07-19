@@ -106,6 +106,16 @@ type liveState struct {
 	peerToName   map[string]string // peer id → node name, for the newswire feed
 	newswire     string            // the scrolling news band, rebuilt each data tick
 	demo         bool              // --demo: display-only, no hire flow wired
+
+	// --- supervision (see supervise.go) ---
+	// superviseOn arms automatic revival (opt-in, off by default — auto-reviving
+	// spawns real sessions). deadSet is the previous tick's dead node ids, for
+	// finding what NEWLY died. superEvents is the recent decision log for display;
+	// pendingRevives is the queue superviseCmd drains.
+	superviseOn    bool
+	deadSet        map[string]bool
+	superEvents    []string
+	pendingRevives []string
 }
 
 // bumpBase invalidates the cached base grid: the next render rebuilds it. Called
@@ -242,6 +252,8 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	m.live.peerToName = peerToName
 	// Rebuild the newswire band from the recent feed, resolved to agent names.
 	m.live.newswire = newswireBand(m.live.msgs, m.peerName, newswireMaxItems)
+	// Supervision: decide (and, if armed, queue revives) for anything newly dead.
+	m.runSupervision(nodes, now)
 	m.live.bumpBase()
 }
 

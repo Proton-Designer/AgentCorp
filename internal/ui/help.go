@@ -17,6 +17,7 @@ var helpKeys = [][2]string{
 	{"x", "fire the selected agent"},
 	{"z", "revive a dead agent (resume its session)"},
 	{"shift-Z", "revive ALL dead agents at once"},
+	{"shift-S", "arm/disarm auto-supervision (self-healing)"},
 	{"shift-D", "disband a subtree"},
 	{"/", "find by name / role / status"},
 	{"l", "activity feed (org message log)"},
