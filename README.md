@@ -50,6 +50,41 @@ AgentCorp is the company layer on top. It doesn't replace `claude-peers` — it 
 
 ---
 
+## The living company
+
+The chart isn't a static diagram — it breathes. Everything that moves is driven by
+a real substrate signal, never invented for the animation's sake, so the pretty
+version is exactly as honest as the plain one.
+
+- **Message-flow.** When one agent messages an adjacent one, a bright pulse travels
+  *along the connector wire* in the message's direction — because a real broker row
+  exists. It depicts transport only: the pulse stops at the wire's end and never
+  enters the destination card, so "a message was sent" is never dressed up as "the
+  other agent is acting on it."
+- **Speech bubbles.** The selected agent shows what it actually said last — its most
+  recent message, quoted, with that message's real age (`said 3s ago`). Past a
+  threshold it flips to `quiet for 3m`, so a bubble appearing *now* can't imply the
+  agent is speaking now. Its self-summary rides the bubble dimmed and marked — the
+  substrate carries no timestamp for a summary, so it's never shown as a live quote.
+- **Vital signs.** Active agents' status LEDs breathe; in lively mode their whole
+  card border pulses, phase-staggered. The pulse is driven by the same
+  message-recency active/quiet signal the HUD uses — the animation adds no new claim.
+- **Newswire + heartbeat.** A broadcast-style band scrolls the recent feed by agent
+  name, over a pulse monitor whose spikes track real message activity in time. A
+  quiet company flatlines and scrolls nothing.
+- **Views.** Toggle an **office / floor-plan** (`o`) — departments as walled rooms,
+  agents as desks — or a **mission-control dashboard** (`g`) — the chart beside live
+  VITALS / WIRE / ALERTS panels. Same data, re-budgeted into a control deck.
+- **Motion budget.** One lever (`v`) cycles **off → calm → lively**, so the ambient
+  motion stays tasteful rather than noisy — or perfectly still for a screenshot or a
+  slow SSH link. A cinematic boot sequence plays on launch (any key skips it).
+
+Performance is honest too: layout runs once per data tick (1 Hz); the ~10 fps frame
+clock only composites a small overlay onto a cached grid, and brightness pulses
+quantise to a few levels so a terminal's per-line diff still skips most rows.
+
+---
+
 ## Companies
 
 By default `claude-peers` is a flat, machine-wide mesh: every Claude session on the laptop can see every other. That's noise the moment you're doing more than one thing. AgentCorp scopes the view to a **company**, which is just a directory subtree.
@@ -96,6 +131,18 @@ A message to a busy agent **cannot interrupt it**. During a tool call the model 
 
 AgentCorp renders inbound messages as **queued**, never as a live interrupt. And "sent" is shown distinctly from "acted on": the substrate never acknowledges delivery, so send-success proves transport, not receipt.
 
+### It bets on your terminal treating box-drawing as narrow
+
+The chart is drawn with box-drawing characters (`─ │ ╭ ╮`), and those are
+East-Asian-Ambiguous width in Unicode — a terminal *may* render them one cell wide
+or two, depending on its `ambiguous-width` setting. AgentCorp assumes **narrow**,
+which is the default in modern terminals (Ghostty, iTerm2, kitty, Alacritty) and in
+tmux. That's a bet, not a dodge: a terminal configured to render ambiguous glyphs
+*wide* will shear the chart's alignment. The animated overlays deliberately stick to
+this same class (plus unambiguous block elements `▁▂▃` for the graphs), so nothing
+tonight widened the exposure — but if your chart looks misaligned, check that
+setting first.
+
 ### It stands on a research preview
 
 Message delivery rides Anthropic's **Channels** feature, which is a research preview and may change. All channel interaction is isolated behind one interface, but that's the foundation.
@@ -137,10 +184,15 @@ go build ./cmd/agentcorp && ./agentcorp
 | `r` | move it under a new manager |
 | `x` | fire the selected agent |
 | `shift-D` | disband a subtree |
+| `z` | revive a dead agent (resume its session) |
+| `shift-Z` | revive ALL dead agents at once |
 | `/` | find by name / role / status |
 | `l` | activity feed (org message log) |
+| `o` | toggle office / floor-plan view |
+| `g` | toggle mission-control dashboard |
 | `e` | export org snapshot (JSON + Markdown) |
 | `t` | cycle colour theme |
+| `v` | cycle motion (off / calm / lively) |
 | `?` | help + colour legend |
 | `q` | quit |
 
@@ -181,7 +233,7 @@ internal/
 
 ## Status
 
-**Phases 1–3 complete, plus directory-scoped companies and a deep operability layer.** The chart renders in colour, polls the live substrate every second, reports real vitals, and the full lifecycle works — hire (with role templates) → self-healing bind → message / broadcast → inspect → rename → move → fire → disband — scoped to the company that owns the launch directory, with adoption, an activity feed, themes, and snapshot export. ~260 tests, single ~11MB binary.
+**Phases 1–3 complete, plus directory-scoped companies, a deep operability layer, and a full living-company visual layer.** The chart renders in colour, polls the live substrate every second, reports real vitals, and the full lifecycle works — hire (with role templates) → self-healing bind → message / broadcast → inspect → rename → move → fire → disband → revive-from-memory — scoped to the company that owns the launch directory, with adoption, an activity feed, themes, and snapshot export. On top sits a decoupled animation layer — message-flow on the wires, breathing vital signs, honest speech bubbles, a scrolling newswire + heartbeat, office and mission-control views, and a boot sequence — all driven by real substrate signals and gated by a motion budget. Single ~12MB binary.
 
 ## Contributing
 
