@@ -6,12 +6,12 @@ package ui
 // at once, an always-max screen reads as noise, not command. The budget lets the
 // operator (and the honest defaults) keep motion tasteful.
 //
-//   off    — a still chart. Every overlay is a no-op; the render path falls back
-//            to the plain styled renderer. For screenshots, SSH on a slow link,
-//            or anyone who just wants the data.
-//   calm   — ambient life only: breathing status LEDs, the occasional message
-//            particle. The default — alive, never busy.
-//   lively — everything the current view offers, at full tempo.
+//	off    — a still chart. Every overlay is a no-op; the render path falls back
+//	         to the plain styled renderer. For screenshots, SSH on a slow link,
+//	         or anyone who just wants the data.
+//	calm   — ambient life only: breathing status LEDs, the occasional message
+//	         particle. The default — alive, never busy.
+//	lively — everything the current view offers, at full tempo.
 type motionLevel uint8
 
 const (
@@ -63,4 +63,3 @@ func (v viewMode) String() string {
 		return "tree"
 	}
 }
-

@@ -102,7 +102,7 @@ func TestLivelyBreathesWholeBorderCalmDoesNot(t *testing.T) {
 	colorEnabled = true
 
 	m := twoNodeModel(t, vitals.StatusActive, vitals.StatusQuiet)
-	m.cursor = -1 // deselect, so the selection highlight doesn't paint the border
+	m.cursor = -1                 // deselect, so the selection highlight doesn't paint the border
 	boss := ledCell(t, m, "boss") // (x+1, y) — a top-border cell
 	// A left-edge border cell that is NOT the LED: (x, y).
 	edge := [2]int{boss[0] - 1, boss[1]}

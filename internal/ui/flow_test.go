@@ -24,7 +24,7 @@ func at(now time.Time, ago time.Duration) string {
 func TestComputeFlowsDirectionAndAdjacency(t *testing.T) {
 	now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
 	msgs := []broker.Message{
-		{ID: 1, FromID: "pB", ToID: "pC", SentAt: at(now, 10*time.Second)},  // too old (> window)
+		{ID: 1, FromID: "pB", ToID: "pC", SentAt: at(now, 10*time.Second)},        // too old (> window)
 		{ID: 2, FromID: "pC", ToID: "pB", SentAt: at(now, 1200*time.Millisecond)}, // CEO→backend, down
 		{ID: 3, FromID: "pI", ToID: "pB", SentAt: at(now, 500*time.Millisecond)},  // intern→backend, up
 		{ID: 4, FromID: "pC", ToID: "pI", SentAt: at(now, 200*time.Millisecond)},  // CEO→intern, NOT adjacent
