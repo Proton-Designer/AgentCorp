@@ -17,6 +17,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recorded locally and re-asked on a version change.
 - Origin classification of inbound messages (known / unknown / forged) —
   surfaced, never blocked.
+- Revive dead agents from their on-disk session memory — one (`z`) or all
+  (`shift-Z`) at once.
+- **Living-company visual layer** — a decoupled ~10 fps animation engine (frame
+  clock independent of the 1 Hz data poll, cached base grid + sparse overlay) with
+  a motion budget (`v`: off / calm / lively):
+  - Message-flow pulses that ride the connector wires in a message's direction
+    (real broker rows only; the pulse stops before the destination card).
+  - Speech bubbles showing the selected agent's last message, honestly aged.
+  - Breathing status LEDs and card borders, driven by the active/quiet signal.
+  - A scrolling newswire by agent name over a heartbeat activity monitor.
+  - An office / floor-plan view (`o`) and a mission-control dashboard (`g`).
+  - A selected-card highlight on the chart, and a cinematic boot sequence.
+  - Everything animated is a real substrate signal — the pretty view is as honest
+    as the plain one.
 
 ### Notes
 - Pre-1.0. The read/display side is stable; the spawn/hire path is newer.

@@ -143,6 +143,15 @@ this same class (plus unambiguous block elements `▁▂▃` for the graphs), so
 tonight widened the exposure — but if your chart looks misaligned, check that
 setting first.
 
+Measured, so it's concrete rather than folklore: in a normal (non-CJK) locale the
+status and role glyphs all resolve to width 1, so there's no misalignment with the
+current glyph set. Under an East-Asian locale (`EastAsianWidth=true`), the round
+markers (`●` active, `◆` researcher) become width 2 while the gear/spark stay 1 —
+so the risk is real but locale-dependent, and it would hit those roles first. The
+one scenario we could not test end-to-end here is a terminal actually configured to
+render ambiguous glyphs wide; that remains an open, precisely-scoped gap rather than
+a claim of safety.
+
 ### It stands on a research preview
 
 Message delivery rides Anthropic's **Channels** feature, which is a research preview and may change. All channel interaction is isolated behind one interface, but that's the foundation.
