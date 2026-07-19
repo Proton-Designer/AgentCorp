@@ -85,6 +85,67 @@ quantise to a few levels so a terminal's per-line diff still skips most rows.
 
 ---
 
+## Self-healing supervision
+
+A company that can revive a dead agent should be able to do it *itself*. AgentCorp
+already resumes a dead agent's real session with its memory intact (`z` / `shift-Z`,
+via `claude --resume`). Supervision turns that into automatic, policy-driven,
+budget-bounded fault tolerance — Erlang/OTP's supervision trees, adapted honestly to
+a substrate where a restart is expensive and non-idempotent.
+
+- **Policies** per supervisor: one-for-one (revive just the dead child), one-for-all
+  (a manager dies → its whole subtree), rest-for-one. The reporting hierarchy already
+  encodes the tree.
+- **Budgets:** a permanently-broken agent must not loop-revive and burn real API cost,
+  so restarts are bounded per window; exceeding the budget **escalates to a human**,
+  it never autonomously kills a healthy agent. That last part is a deliberate
+  divergence from literal OTP — an LLM agent's context is a valuable conversation, not
+  a cheap process, so we never cascade-kill a working one to satisfy the analogy.
+- **Opt-in by default.** An armed supervisor auto-revives, which spawns real sessions,
+  so the default is *decide-and-show*: the supervisor's decision is displayed and
+  nothing is revived until you arm it (`shift-S`). Try it in `--demo` — one agent
+  starts dead; arm supervision and watch it come back.
+
+**What it does not claim.** A restart resumes the *same* session, but a resumed agent
+continues non-deterministically, and revival **refuses** when the session's memory is
+gone rather than silently spawning a different agent. It is honest retry-with-budget
+wearing OTP's structure — not OTP's assumption that the restarted child converges on
+the same result. And it recovers the agent's memory, not the world's: the codebase may
+have moved while the agent was dead, and nothing tells it what changed.
+
+---
+
+## The epistemic auditor
+
+The frontier problem in multi-agent systems isn't moving messages faster — it's that
+**nothing an agent says can be checked without redoing it**, and the failures that
+result are honest ones: a test that passes regardless of correctness, a measurement
+equal to its own timeout, two sources "agreeing" because neither can disagree. The
+auditor (`internal/audit`, and a standalone `audit` tool) is a passive layer that asks
+*"could this **check** have caught anything,"* never the unanswerable *"is this
+**claim** true."*
+
+Five cheap, domain-general detectors flag verification that could not discriminate:
+a measurement equal to a cap; a check that doesn't fail on a seeded break (the fig-leaf
+killer); a result cheaper than predicted; agreement between sources that share a
+dependency; and a capability no test reaches through the real transport. It is
+[metamorphic testing](https://dl.acm.org/doi/10.1145/3143561) applied to agent
+coordination — the technique is decades old; what's new is running it as a
+**cross-agent, blind-graded verification loop**, where one agent's tool audits another
+team's codebase and a third party grades the findings blind, with pre-registered
+predictions on both sides.
+
+Pointed at AgentCorp's own tests it found a documented invariant with no test, a
+cascade-kill path never invoked, and edge branches that survive mutation. Pointed at a
+peer team's TypeScript codebase — blind — it found a *fixed-but-never-tested* bug. It
+is a **diagnostic, never a score**: at the precision honesty demands it surfaces "N to
+investigate," and a scored detector is a gamed detector. The full design, the
+refutation that shaped it, and the honest results (including what it misses and its
+~11% precision on the invariant detector) are in
+[`docs/design/proof-carrying-claims.md`](docs/design/proof-carrying-claims.md).
+
+---
+
 ## Companies
 
 By default `claude-peers` is a flat, machine-wide mesh: every Claude session on the laptop can see every other. That's noise the moment you're doing more than one thing. AgentCorp scopes the view to a **company**, which is just a directory subtree.
@@ -195,6 +256,7 @@ go build ./cmd/agentcorp && ./agentcorp
 | `shift-D` | disband a subtree |
 | `z` | revive a dead agent (resume its session) |
 | `shift-Z` | revive ALL dead agents at once |
+| `shift-S` | arm / disarm auto-supervision (self-healing) |
 | `/` | find by name / role / status |
 | `l` | activity feed (org message log) |
 | `o` | toggle office / floor-plan view |

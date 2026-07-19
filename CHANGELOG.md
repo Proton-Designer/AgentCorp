@@ -32,5 +32,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Everything animated is a real substrate signal — the pretty view is as honest
     as the plain one.
 
+- **Self-healing supervision** — automatic, policy-driven, budget-bounded fault
+  tolerance over the memory-intact revival: one-for-one / one-for-all / rest-for-one
+  restart policies, restart budgets, and escalation-to-human rather than autonomous
+  cascade-kill (a deliberate divergence from OTP for expensive, non-idempotent LLM
+  agents). Opt-in with `shift-S`; decide-and-show by default. Pure policy engine in
+  `internal/supervision`.
+- **The epistemic auditor** (`internal/audit` + a standalone `audit` tool) — a passive
+  layer that detects verification theatre in an agent mesh: checks that pass regardless
+  of correctness, measurements equal to their own cap, agreement between sources that
+  share a blind spot, capabilities no test reaches through the real transport, and
+  documented invariants with no test. Diagnostic, never a score. Validated by a
+  cross-agent, blind-graded verification loop (see `docs/design/proof-carrying-claims.md`).
+
 ### Notes
 - Pre-1.0. The read/display side is stable; the spawn/hire path is newer.
