@@ -504,10 +504,11 @@ func (m Model) View() string {
 		b.WriteString("\n")
 	}
 
-	// The activity ticker: the most recent message in the org. Always moving,
-	// so the screen has a pulse even when the tree is calm.
-	if m.live != nil && m.live.ticker != "" {
-		b.WriteString("\n  ◷ " + truncate(m.live.ticker, m.width-6) + "\n")
+	// The newswire: a scrolling broadcast band of the recent feed by agent name,
+	// plus a heartbeat pulse of message activity. Replaces the old single-line
+	// peer-id ticker with something that reads like a company's live wire.
+	if m.live != nil {
+		b.WriteString(m.renderNewswire())
 	}
 
 	// A stale view must say so. The tree on screen is the last thing we knew

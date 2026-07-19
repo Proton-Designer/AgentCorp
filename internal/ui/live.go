@@ -101,8 +101,10 @@ type liveState struct {
 	baseBuiltVer int // the version the cache was built at
 	statuses     map[string]vitals.Status
 	animating    bool
-	flows        []flowSpec         // message-flow edges to animate, derived each data tick
-	nameToPeer   map[string]string  // node name → peer id, for the speech bubble lookups
+	flows        []flowSpec        // message-flow edges to animate, derived each data tick
+	nameToPeer   map[string]string // node name → peer id, for the speech bubble lookups
+	peerToName   map[string]string // peer id → node name, for the newswire feed
+	newswire     string            // the scrolling news band, rebuilt each data tick
 }
 
 // bumpBase invalidates the cached base grid: the next render rebuilds it. Called
@@ -228,12 +230,17 @@ func (m *Model) applyTick(msg sync.TickMsg) {
 	m.live.flows = computeFlows(nodes, m.live.msgs, now, FlowWindow)
 	m.live.animating = m.live.summary.Active > 0 || len(m.live.flows) > 0
 	nameToPeer := make(map[string]string, len(nodes))
+	peerToName := make(map[string]string, len(nodes))
 	for _, n := range nodes {
 		if n.PeerID != "" {
 			nameToPeer[n.Name] = n.PeerID
+			peerToName[n.PeerID] = n.Name
 		}
 	}
 	m.live.nameToPeer = nameToPeer
+	m.live.peerToName = peerToName
+	// Rebuild the newswire band from the recent feed, resolved to agent names.
+	m.live.newswire = newswireBand(m.live.msgs, m.peerName, newswireMaxItems)
 	m.live.bumpBase()
 }
 
