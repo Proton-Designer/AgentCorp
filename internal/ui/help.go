@@ -20,6 +20,7 @@ var helpKeys = [][2]string{
 	{"shift-D", "disband a subtree"},
 	{"/", "find by name / role / status"},
 	{"l", "activity feed (org message log)"},
+	{"o", "toggle office / floor-plan view"},
 	{"e", "export org snapshot (JSON + Markdown)"},
 	{"t", "cycle colour theme"},
 	{"v", "cycle motion (off / calm / lively)"},

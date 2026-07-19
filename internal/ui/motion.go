@@ -40,3 +40,22 @@ func (l motionLevel) next() motionLevel {
 // level that doesn't, so the render and frame-scheduling paths gate on this
 // rather than comparing against a literal.
 func (l motionLevel) animates() bool { return l != motionOff }
+
+// viewMode selects how the org is drawn. The tree is the default org-chart; the
+// office is the floor-plan reframe (office.go). They're mutually exclusive renders
+// of the same data — a toggle, not a layer — because they position the same nodes
+// differently and can't share the viewport.
+type viewMode uint8
+
+const (
+	viewTree viewMode = iota
+	viewOffice
+)
+
+func (v viewMode) String() string {
+	if v == viewOffice {
+		return "office"
+	}
+	return "tree"
+}
+

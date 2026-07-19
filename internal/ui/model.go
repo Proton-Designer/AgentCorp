@@ -65,6 +65,10 @@ type Model struct {
 	// frame scheduler, and anim_render.go.
 	frame  int
 	motion motionLevel
+
+	// view selects the org rendering: the tree chart (default) or the office
+	// floor plan. Cycled with 'o'. See office.go.
+	view viewMode
 }
 
 // BuildTree assembles a layout tree from store rows.
@@ -317,6 +321,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if colorEnabled {
 				m.flash = "theme: " + cycleTheme()
 			}
+		case "o":
+			// Toggle the office floor-plan view. A mode switch, not an overlay —
+			// the two renders can't share the viewport.
+			if m.view == viewOffice {
+				m.view = viewTree
+			} else {
+				m.view = viewOffice
+			}
+			m.flash = "view: " + m.view.String()
 		case "v":
 			// Cycle the motion budget: off → calm → lively → off. We deliberately
 			// do NOT arm a frame here — exactly one frame timer is ever in flight
@@ -353,6 +366,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) renderChart() string {
 	if m.live == nil {
 		return Render(m.root, m.width)
+	}
+	// Office floor-plan view: an alternate positioning of the same nodes, so it
+	// replaces the chart entirely rather than layering on it. It bounds itself to
+	// the chart's height budget.
+	if m.view == viewOffice {
+		h := m.height - 12
+		if h < 8 {
+			h = 8
+		}
+		return renderOffice(m.root, m.statusMap(), m.width, h)
 	}
 	// Motion on (and colour available) → the cached-base + overlay path, which
 	// falls back to a byte-identical styled emit on any still frame. Motion off →
@@ -557,7 +580,7 @@ func (m Model) View() string {
 		if m.flash != "" {
 			b.WriteString("  " + m.flash + "\n")
 		}
-		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · t theme · v motion · q quit\n")
+		b.WriteString("  ? help · ↑↓ move · space fold · i inspect · h hire · a adopt · m msg · b broadcast · x fire · shift-D disband · / find · o office · t theme · v motion · q quit\n")
 	}
 	return b.String()
 }
