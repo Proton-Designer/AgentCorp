@@ -201,6 +201,68 @@ observability:
 - The flags are a company vital: how much of what this company "verified" could not
   have caught anything.
 
+## 6.5 Results, and what is honestly novel (and what is not)
+
+Built and run, on two codebases, blind-graded across teams. The results are real and
+small, and the framing has been corrected once already — recorded here because the
+correction is the more useful artifact.
+
+**What the auditor found:**
+- *Retrodiction* (§5): 9/14 real honest-error failures caught by ≥1 detector,
+  pre-registered; weak (encoding confound).
+- *Prospective, AgentCorp:* boundary-coverage flagged 7 zero-coverage capabilities
+  (cold-graded 4 strong / 2 probable / 1 uncertain), including a documented invariant
+  with no test (`store.SetState` — guard confirmed holding by a test written in
+  response), the disband cascade-kill (dialog tested five ways, the kill never
+  invoked), and broadcast (targeting tested, sending not). The discrimination probe
+  flagged 2 surviving mutants — `matchesFilter`'s never-exercised empty-filter branch
+  and `BuildTree`'s untested tie-break — and confirmed clean discrimination on
+  `internal/vitals` and `internal/hire`.
+- *Cross-codebase (the strongest test — foreign code, blind grading):* the
+  invariant-comment detector, run on a peer team's TypeScript codebase the author had
+  never opened, graded cold by that team: **2 of 19 genuine** (a *fixed-but-never-
+  tested* bug in `colorKey`; an untested fatal-propagation in `resolveWidthTable`),
+  ~15 false positives, precision ≈ 11%.
+
+**What is NOT novel (stated so the write-up can't overclaim it).** The pattern the
+findings trace — tests cover decisions and main paths, skip effects and edge branches
+— is not a discovery about *agent* teams. It is the founding premise of **mutation
+testing** (DeMillo, Lipton & Sayward, 1978) and the reason branch coverage and MC/DC
+exist. On this evidence we cannot distinguish "a property of agent-written code" from
+"a property of code"; a human team's suite would likely show the same shape. So the
+claim is *not* "agent teams have this bias." And with four findings read off the
+results after seeing them, the pattern is **consistent, not replicated** — replication
+would need a pre-registered prediction that could have failed (e.g. "the next run on a
+third codebase yields >60% edge/effect cases," then run). We did not make that
+prediction; we will not pretend we did.
+
+**What IS novel, narrowed to what survives.** Not the detection — coverage analysis
+and mutation testing have decades on this. What has no clear prior art is the **loop**:
+an auditor whose findings are routed *between independent agents as a coordination
+signal* — one agent's tool auditing another agent team's codebase, a third party
+grading the results **blind**, with **pre-registered predictions on both sides** that
+were allowed to fail (and did: the grader's headline prediction about the failure
+mechanism was wrong, and the tool's author's corroboration claim was manufactured and
+retracted). Cross-agent, blind-graded, pre-registered verification as a working
+protocol is the contribution. The detectors are its cheap, old, honest instruments.
+
+**Honest limitation (from the cold grade).** The ~11% precision comes not from the
+language grep (contract-vs-rationale precision was good) but from the **coverage
+proxy**: symbol-reference asks "does a test NAME this," but well-factored code tests
+internals THROUGH their public entry point, so **precision falls as factoring
+improves** — a perverse gradient penalizing the structure you want. The fix (not built
+here) is call-graph reachability, the same graph property as boundary-coverage one
+level down. At this precision the detector is a diagnostic that surfaces "N to
+investigate," never a gate or score — mandated, it buries the real hits and the first
+user stops reading.
+
+**The standing caveat, unresolved.** This design and its validation were produced by
+two instances of one model converging over hours. The single genuinely independent
+input was a literature scan, and it corrected the authors twice. Every substantive
+improvement tonight came from one party being wrong *on the record* and another
+noticing — which is simultaneously the strongest evidence for the auditor's premise
+and the reason to distrust the authors' agreement about it.
+
 ## 7. What we build (scope)
 1. `internal/audit` — the four detectors as pure functions over a general `Check`
    abstraction (claim, result, cap, duration, predicted, deps, discriminates), each
