@@ -189,10 +189,25 @@ func runDemo() error {
 	return err
 }
 
+// demoSummaries gives each seeded agent a distinct, plausible self-summary so the
+// speech-bubble / nameplate layer has real (if synthetic) text to show. Indexed
+// to match the seed order [CEO, backend, frontend, research, intern].
+var demoSummaries = []string{
+	"steering the Q3 roadmap; unblocking the team",
+	"refactoring the payments ledger for idempotency",
+	"polishing the dashboard's live animations",
+	"benchmarking retrieval latency across shards",
+	"writing the backend's missing edge-case tests",
+}
+
 func demoPeers(ids []string) func() ([]broker.Peer, error) {
 	ps := make([]broker.Peer, len(ids))
 	for i, id := range ids {
-		ps[i] = broker.Peer{ID: id, CWD: "/demo", Summary: "working on the demo"}
+		summary := "working on the demo"
+		if i < len(demoSummaries) {
+			summary = demoSummaries[i]
+		}
+		ps[i] = broker.Peer{ID: id, CWD: "/demo", Summary: summary}
 	}
 	return func() ([]broker.Peer, error) { return ps, nil }
 }
@@ -200,21 +215,50 @@ func demoPeers(ids []string) func() ([]broker.Peer, error) {
 var demoTexts = []string{
 	"on it", "shipped the fix", "reviewing now", "found an edge case",
 	"tests green", "need a second pair of eyes", "deploying", "done",
+	"pushing to staging", "can you take a look?", "rebased", "LGTM",
 }
 
-// demoMessages returns a source whose message count grows with elapsed time
-// (one every ~2s), so throughput and the ticker keep moving.
+// demoStep is the synthetic activity cadence. Fast enough that a message is
+// almost always fresh (a particle in flight for F1), slow enough to read.
+const demoStep = 1800 * time.Millisecond
+
+// demoBackfill seeds this many messages in the recent past so the org is alive
+// the instant the demo opens — every reporting line has spoken within the
+// activity window, so nodes breathe and the ticker/sparkline are populated from
+// frame one rather than warming up over the first minute.
+const demoBackfill = 24
+
+// demoMessages returns a message source that follows the REPORTING LINES (not a
+// round-robin), so the traffic maps onto real tree edges the message-flow overlay
+// can animate. The stream is backfilled into the recent past and then grows with
+// elapsed time, alternating direction (a report replying up its manager line).
 func demoMessages(start time.Time, peerIDs []string) func() ([]broker.Message, error) {
+	// Parent→child pairs matching the seeded hierarchy: CEO↔backend, CEO↔frontend,
+	// CEO↔research, backend↔intern.
+	type edge struct{ a, b string }
+	edges := []edge{
+		{peerIDs[0], peerIDs[1]},
+		{peerIDs[0], peerIDs[2]},
+		{peerIDs[0], peerIDs[3]},
+		{peerIDs[1], peerIDs[4]},
+	}
+	base := start.Add(-demoBackfill * demoStep)
 	return func() ([]broker.Message, error) {
-		n := int(time.Since(start) / (2 * time.Second))
-		out := make([]broker.Message, 0, n)
-		for i := 0; i < n; i++ {
+		live := int(time.Since(start) / demoStep)
+		total := demoBackfill + live
+		out := make([]broker.Message, 0, total)
+		for i := 0; i < total; i++ {
+			e := edges[i%len(edges)]
+			from, to := e.a, e.b
+			if i%2 == 1 { // odd steps reply back up the line
+				from, to = e.b, e.a
+			}
 			out = append(out, broker.Message{
 				ID:     int64(i),
-				FromID: peerIDs[i%len(peerIDs)],
-				ToID:   peerIDs[(i+1)%len(peerIDs)],
+				FromID: from,
+				ToID:   to,
 				Text:   demoTexts[i%len(demoTexts)],
-				SentAt: start.Add(time.Duration(i) * 2 * time.Second).UTC().Format(time.RFC3339),
+				SentAt: base.Add(time.Duration(i) * demoStep).UTC().Format(time.RFC3339Nano),
 			})
 		}
 		return out, nil
