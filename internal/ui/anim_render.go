@@ -78,6 +78,7 @@ func (m Model) buildOverlay() overlay {
 		return ov
 	}
 	byName := map[string]*layout.Node{}
+	parentOf := map[string]*layout.Node{}
 	var walk func(n *layout.Node)
 	walk = func(n *layout.Node) {
 		byName[n.ID] = n
@@ -97,22 +98,35 @@ func (m Model) buildOverlay() overlay {
 			return
 		}
 		for _, c := range n.Children {
+			parentOf[c.ID] = n
 			walk(c)
 		}
 	}
 	walk(m.root)
 
-	m.addFlowOverlay(ov, byName)
-
-	// Selection highlight: the cursor's card border goes bold in its status
-	// colour — the brightest card on the chart — so the selection is visible on
-	// the tree itself, not only in the speech bubble below it. Applied last so it
-	// wins over a breathing border on the same card.
+	// Selection + chain of command: the cursor's card border goes bold in its
+	// status colour — the brightest card on the chart — and the connectors from it
+	// up to the root glow the same colour, tracing who this agent reports to. Done
+	// before the flow overlay so a live message pulse still shows on top of the
+	// static chain highlight where they share a wire.
 	if sel := m.selected(); sel != nil {
 		if n, ok := byName[sel.ID]; ok && n.W >= 4 {
-			setBorder(ov, n, dimANSI(styleForStatus(statuses[sel.ID]), 2))
+			accent := dimANSI(styleForStatus(statuses[sel.ID]), 2)
+			setBorder(ov, n, accent)
+			for cur := n; ; {
+				p, ok := parentOf[cur.ID]
+				if !ok {
+					break
+				}
+				for _, cell := range edgePath(p, cur) {
+					ov[cell] = ovCell{ansi: accent}
+				}
+				cur = p
+			}
 		}
 	}
+
+	m.addFlowOverlay(ov, byName)
 	return ov
 }
 

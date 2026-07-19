@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Proton-Designer/AgentCorp/internal/layout"
 	"github.com/Proton-Designer/AgentCorp/internal/store"
 	"github.com/Proton-Designer/AgentCorp/internal/vitals"
 )
@@ -135,6 +136,40 @@ func TestSelectionHighlightsSelectedCardBorder(t *testing.T) {
 	}
 	if _, ok := ov[workerEdge]; ok {
 		t.Errorf("a non-selected, quiet card must not be highlighted")
+	}
+}
+
+func TestChainOfCommandHighlight(t *testing.T) {
+	defer func(c bool) { colorEnabled = c }(colorEnabled)
+	colorEnabled = true
+
+	m := twoNodeModel(t, vitals.StatusQuiet, vitals.StatusQuiet)
+	m.frame = 5
+	m.cursor = 1 // select "worker" (child of "boss")
+
+	var boss, worker *layout.Node
+	for _, n := range m.flat {
+		switch n.ID {
+		case "boss":
+			boss = n
+		case "worker":
+			worker = n
+		}
+	}
+	if boss == nil || worker == nil {
+		t.Fatal("expected boss and worker in the flattened tree")
+	}
+
+	ov := m.buildOverlay()
+	path := edgePath(boss, worker)
+	if len(path) == 0 {
+		t.Fatal("expected a connector path between boss and worker")
+	}
+	for _, cell := range path {
+		c, ok := ov[cell]
+		if !ok || !strings.Contains(c.ansi, "\x1b[1;") {
+			t.Errorf("connector cell %v on the selected node's chain should glow bold, got %v (ok=%v)", cell, c, ok)
+		}
 	}
 }
 
