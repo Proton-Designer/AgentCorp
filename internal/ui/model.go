@@ -69,6 +69,18 @@ type Model struct {
 	// view selects the org rendering: the tree chart (default) or the office
 	// floor plan. Cycled with 'o'. See office.go.
 	view viewMode
+
+	// booting is the launch splash state (boot.go). Opt-in via WithBoot so it's a
+	// launch concern only — tests that build a live model never boot. Any key, or
+	// bootDuration frames, ends it.
+	booting bool
+}
+
+// WithBoot arms the launch boot sequence. Called by the command at startup, not
+// by the constructors, so only a real launch shows the splash.
+func (m Model) WithBoot() Model {
+	m.booting = true
+	return m
 }
 
 // BuildTree assembles a layout tree from store rows.
@@ -250,6 +262,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.tickCmd(), scheduleTick())
 
 	case frameTick:
+		// During the launch splash the clock always advances (the boot animation
+		// needs frames even before any agent is active), and ends the splash when
+		// it completes.
+		if m.booting {
+			m.frame++
+			if m.frame >= bootDuration {
+				m.booting = false
+			}
+			return m, scheduleFrame(FrameInterval)
+		}
 		// The animation clock. It advances the frame counter ONLY when motion is
 		// on and something is actually moving (cached from the last data tick),
 		// then re-arms at the fast cadence. Otherwise it advances nothing and
@@ -270,6 +292,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// While the launch splash is up, any key skips straight to the chart —
+		// except ctrl+c, which still quits.
+		if m.booting {
+			if msg.String() == "ctrl+c" {
+				m.quitting = true
+				return m, tea.Quit
+			}
+			m.booting = false
+			return m, nil
+		}
 		key := msg.String()
 		m.flash = "" // any keypress clears a stale status line
 
@@ -507,6 +539,11 @@ func (m Model) selected() *layout.Node {
 func (m Model) View() string {
 	if m.quitting {
 		return ""
+	}
+
+	// The launch splash owns the whole screen until it finishes or is skipped.
+	if m.booting {
+		return renderBoot(m.frame, m.width, m.height)
 	}
 
 	var b strings.Builder

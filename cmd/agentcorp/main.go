@@ -120,7 +120,8 @@ func run() error {
 
 	model := ui.NewLive(s, nodes).
 		WithScope(co, root).
-		WithHire(flow, cwd)
+		WithHire(flow, cwd).
+		WithBoot()
 	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
 }
@@ -184,7 +185,7 @@ func runDemo() error {
 	start := time.Now()
 	msgs := demoMessages(start, peerIDs)
 
-	model := ui.NewDemo(s, nodes, peers, msgs, "Demo Co")
+	model := ui.NewDemo(s, nodes, peers, msgs, "Demo Co").WithBoot()
 	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
 }
