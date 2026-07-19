@@ -543,7 +543,14 @@ func (m Model) View() string {
 	case modeFeed:
 		b.WriteString("\n" + m.renderFeed())
 	default:
-		if n := m.selected(); n != nil {
+		// The selected agent's speech bubble stands in for the old bare
+		// "selected: X" line — its actual last words, honestly aged. A static
+		// (non-live) model keeps the plain label.
+		if m.live != nil {
+			if bubble := m.renderSpeechBubble(); bubble != "" {
+				b.WriteString(bubble)
+			}
+		} else if n := m.selected(); n != nil {
 			b.WriteString(fmt.Sprintf("  selected: %s\n", n.ID))
 		}
 		if m.flash != "" {
