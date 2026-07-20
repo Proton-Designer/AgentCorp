@@ -122,6 +122,8 @@ func run() error {
 		WithScope(co, root).
 		WithHire(flow, cwd).
 		WithBoot()
+	restore := setupTmuxInput()
+	defer restore()
 	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus()).Run()
 	return err
 }
@@ -190,6 +192,8 @@ func runDemo() error {
 	msgs := demoMessages(start, peerIDs)
 
 	model := ui.NewDemo(s, nodes, peers, msgs, "Demo Co").WithBoot()
+	restore := setupTmuxInput()
+	defer restore()
 	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus()).Run()
 	return err
 }

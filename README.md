@@ -224,7 +224,10 @@ Message delivery rides Anthropic's **Channels** feature, which is a research pre
 ## Requirements
 
 - **Go 1.25+** (to build)
-- **tmux** — AgentCorp spawns each agent into its own tmux window
+- **tmux** — AgentCorp spawns each agent into its own tmux window. Click an
+  agent's card (or press Enter on it) to jump straight to its session; AgentCorp
+  turns on the tmux mouse and focus-event options it needs for that on launch and
+  restores them on exit, so there's nothing to add to your `~/.tmux.conf`.
 - **[`claude-peers`](https://github.com/louislva/claude-peers-mcp)** installed and registered
 - **Claude Code**, launched with channels enabled
 
