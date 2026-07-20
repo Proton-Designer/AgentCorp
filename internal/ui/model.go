@@ -253,8 +253,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Wipe on resize. Without this, resizing a bare (non-tmux) terminal —
 		// especially restoring it from minimized — can strand the previous
 		// frame above the new one, stacking duplicate UIs. tmux hides this by
-		// owning the redraw; bare Bubble Tea needs the explicit clear.
-		return m, tea.ClearScreen
+		// owning the redraw; bare Bubble Tea needs the explicit clear. Re-arm the
+		// mouse too: a redraw often follows a context switch that dropped it.
+		return m, tea.Batch(tea.ClearScreen, tea.EnableMouseCellMotion)
+
+	case tea.FocusMsg:
+		// We regained focus — typically returning from an agent's tmux window.
+		// A terminal (notably macOS Terminal.app) can drop our mouse-reporting
+		// mode while another full-screen TUI held the screen, and Bubble Tea only
+		// arms it once at startup, so clicks silently die. Re-arm it here. This is
+		// the confirmed fix for "click-to-open works once, then goes dead."
+		// Idempotent: harmless if the mode was never lost.
+		return m, tea.EnableMouseCellMotion
 
 	case tickWake:
 		// Timer fired: run a poll and re-arm. Re-arming here rather than

@@ -122,7 +122,7 @@ func run() error {
 		WithScope(co, root).
 		WithHire(flow, cwd).
 		WithBoot()
-	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus()).Run()
 	return err
 }
 
@@ -190,7 +190,7 @@ func runDemo() error {
 	msgs := demoMessages(start, peerIDs)
 
 	model := ui.NewDemo(s, nodes, peers, msgs, "Demo Co").WithBoot()
-	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	_, err = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus()).Run()
 	return err
 }
 
